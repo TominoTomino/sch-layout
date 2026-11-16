@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "0.1.0",
+  "version": "0.1.0",
+  "unit": "0.01in",
+  "grid": 10,
+  "spacing": {
+    "componentMin": 20,
+    "blockGap": 40,
+    "labelClearance": 6,
+    "pinStubLength": 10
+  },
+  "routing": {
+    "maxBendsPerWire": 2,
+    "allowDiagonal": false,
+    "preferNetLabelAcrossBlocks": true
+  },
+  "orientation": {
+    "powerSymbolFacing": "up",
+    "groundSymbolFacing": "down",
+    "signalFlow": "left-to-right"
+  },
+  "limits": {
+    "maxComponentsPerPage": 20,
+    "maxBlocksPerPage": 6,
+    "minComponentsPerBlock": 1
+  },
+  "provenance": {
+    "_note": "Every number must record where it came from. Written by measure.mjs, never hand-edited without updating this block.",
+    "componentMin": { "source": "PLACEHOLDER", "method": "assumed", "n": 0 },
+    "blockGap": { "source": "PLACEHOLDER", "method": "assumed", "n": 0 },
+    "labelClearance": { "source": "PLACEHOLDER", "method": "assumed", "n": 0 },
+    "pinStubLength": { "source": "PLACEHOLDER", "method": "assumed", "n": 0 }
+  }
+}

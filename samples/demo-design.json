@@ -1,0 +1,18 @@
+{
+  "design": "DEMO_LDO_3V3",
+  "note": "抽象盒模型输入：只描述连通性和引脚分布，不含真实符号几何。",
+  "components": [
+    { "id": "J1", "ref": "J1", "kind": "connector", "leftPins": 0, "rightPins": 2 },
+    { "id": "C1", "ref": "C1", "kind": "cap", "leftPins": 0, "rightPins": 0, "topPins": 1, "bottomPins": 1 },
+    { "id": "U1", "ref": "U1", "kind": "ic", "leftPins": 2, "rightPins": 3 },
+    { "id": "C2", "ref": "C2", "kind": "cap", "leftPins": 0, "rightPins": 0, "topPins": 1, "bottomPins": 1 },
+    { "id": "R1", "ref": "R1", "kind": "res", "leftPins": 1, "rightPins": 1 },
+    { "id": "R2", "ref": "R2", "kind": "res", "leftPins": 1, "rightPins": 1 }
+  ],
+  "nets": [
+    { "name": "VCC_5V", "pins": ["J1.1", "C1.1", "U1.1"] },
+    { "name": "GND", "pins": ["J1.2", "C1.2", "U1.2", "C2.2", "R2.1"] },
+    { "name": "VOUT_3V3", "pins": ["U1.3", "C2.1", "R1.1"] },
+    { "name": "FB", "pins": ["U1.4", "R1.2", "R2.2"] }
+  ]
+}

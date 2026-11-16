@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "0.1.0",
+  "unit": "0.01in",
+  "grid": 10,
+  "source": {
+    "platform": "easyeda",
+    "project": "DEMO_LDO_3V3",
+    "page": "P1",
+    "note": "故意包含多种可读性缺陷的演示页，用于验证 lint 规则是否按预期触发。"
+  },
+  "components": [
+    {
+      "id": "u1", "designator": "U1", "x": 200, "y": 300, "rotation": 0, "mirror": false,
+      "bbox": { "x": 200, "y": 300, "w": 80, "h": 60 },
+      "pins": [
+        { "num": "1", "name": "IN", "x": 200, "y": 320 },
+        { "num": "2", "name": "GND", "x": 200, "y": 340 },
+        { "num": "3", "name": "OUT", "x": 280, "y": 320 },
+        { "num": "4", "name": "ADJ", "x": 280, "y": 340 }
+      ]
+    },
+    {
+      "id": "c1", "designator": "C1", "x": 140, "y": 300, "rotation": 0, "mirror": false,
+      "bbox": { "x": 140, "y": 300, "w": 20, "h": 40 },
+      "pins": [
+        { "num": "1", "name": "", "x": 160, "y": 310 },
+        { "num": "2", "name": "", "x": 160, "y": 330 }
+      ]
+    },
+    {
+      "id": "c2", "designator": "C2", "x": 320, "y": 300, "rotation": 0, "mirror": false,
+      "bbox": { "x": 320, "y": 300, "w": 20, "h": 40 },
+      "pins": [
+        { "num": "1", "name": "", "x": 320, "y": 310 },
+        { "num": "2", "name": "", "x": 340, "y": 330 }
+      ]
+    },
+    {
+      "id": "c3", "designator": "C3", "x": 325, "y": 305, "rotation": 0, "mirror": false,
+      "bbox": { "x": 325, "y": 305, "w": 20, "h": 40 },
+      "pins": [
+        { "num": "1", "name": "", "x": 325, "y": 315 },
+        { "num": "2", "name": "", "x": 325, "y": 335 }
+      ]
+    },
+    {
+      "id": "r1", "designator": "R1", "x": 400, "y": 300, "rotation": 90, "mirror": false,
+      "bbox": { "x": 400, "y": 300, "w": 20, "h": 60 },
+      "pins": [
+        { "num": "1", "name": "", "x": 400, "y": 310 },
+        { "num": "2", "name": "", "x": 400, "y": 350 }
+      ]
+    },
+    {
+      "id": "r2", "designator": "R2", "x": 405, "y": 380, "rotation": 90, "mirror": false,
+      "bbox": { "x": 405, "y": 380, "w": 20, "h": 60 },
+      "pins": [
+        { "num": "1", "name": "", "x": 405, "y": 390 },
+        { "num": "2", "name": "", "x": 405, "y": 430 }
+      ]
+    }
+  ],
+  "wires": [
+    { "id": "w1", "net": "VCC_5V", "points": [[120, 320], [160, 310]] },
+    { "id": "w2", "net": "VIN", "points": [[160, 310], [180, 310], [180, 320], [200, 320]] },
+    { "id": "w3", "net": "VOUT_3V3", "points": [[280, 320], [300, 320], [300, 310]] },
+    { "id": "w5", "net": "ADJ", "points": [[160, 330], [340, 330]] },
+    { "id": "w6", "net": "FB", "points": [[400, 350], [400, 390], [405, 390]] }
+  ],
+  "labels": [
+    { "id": "l1", "text": "VCC_5V", "x": 120, "y": 320, "rotation": 0 },
+    { "id": "l3", "text": "GND", "x": 230, "y": 330, "rotation": 0 }
+  ],
+  "texts": [
+    { "id": "t1", "text": "LDO 3V3", "x": 200, "y": 270 }
+  ]
+}

@@ -1,0 +1,12 @@
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+out/
+tmp/
+.local/
+# never commit project data (customer netlists, real page dumps)
+samples/private/
+fixtures/private/
+*.token
+.env
