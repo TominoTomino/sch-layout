@@ -45,14 +45,24 @@ node scripts/layout.mjs  <design.json> [--out plan.json] [--emit-page page.json]
 
 ## adapter（尚未实现）
 
-本仓库只产出坐标，不直接写 EDA。真实落图需要一层 adapter：
+本仓库只产出坐标，不直接写 EDA。真实落图需要一层 adapter，官方 API 已经把原语给全了：
 
-1. 用 `lib_Symbol.get()` 取每个器件的真实引脚坐标
-2. 用本仓库的 plan 里 `component.x/y` 作为外框左上角，按引脚 `side` 比例映射到真实 pin
-3. 调 `sch_PrimitiveComponent.create` / `sch_PrimitiveWire.create`
-4. 落图后再 `measure` 一次，比对实际间距与 plan 的偏差
+1. `sch_PrimitiveComponent.getAllPrimitiveId()` 拿元件，`getAllPinsByPrimitiveId(id)` 拿**真实引脚坐标**——不要自己按外框推算
+2. 用 plan 的 `component.x/y` 作锚点，把抽象外框映射到真实符号几何
+3. `sch_PrimitiveComponent.create(component, x, y, ...)` 放器件，`sch_PrimitiveWire.create` 画块内短线
+4. **跨块连接改用 `createNetFlag('Power'|'Ground'|'AnalogGround'|'ProtectGround')` 与 `createNetPort('IN'|'OUT'|'BI')`**，不要用 wire + 文本标签（design-notes D12）
+5. 落图后跑 `sys_Tool.netlistComparison(源网表, sch_ManufactureData.getNetlistFile())` 做往返校验，差异必须为空（design-notes D11）
+6. 再 `measure` 一次，比对实际间距与 plan 的偏差
 
 在 adapter 存在之前，**不要把 plan 坐标直接写进 EDA**，外框模型和真实符号几何不一致。
+
+## 官方 autoLayout 是基线，不是对手
+
+`sch_Document.autoLayout()`（Beta）确实存在，但只接受 `uuids` / `netlist` / `designatorDeviceTypeMap` 三个参数——**没有任何间距、分区、朝向的入口**（design-notes D10）。
+
+所以：**先跑它一遍，记录分数当基线。** 自研布局必须跑赢这个基线，跑不赢就说明方向错了。
+
+原理图侧没有任何 DRC（`SCH_Document` 只有 autoLayout / autoRouting / importChanges / save），`lint` 是补空白，不是重复造轮子（design-notes D13）。
 
 ## 改造本 skill 的流程
 

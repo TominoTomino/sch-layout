@@ -22,11 +22,12 @@
 
 ## 待办（按优先级）
 
-1. **adapter**：真实符号引脚坐标 → `sch_PrimitiveComponent` / `sch_PrimitiveWire`。没有它，plan 不能落地。
-2. **真实数据校准 schema**：用 3 张真实页面 dump 验证 `pins` 与 `label.align` 两个最可疑字段。
-3. **替换 PLACEHOLDER 常量**：跑 `measure --write`，更新 provenance。
-4. **15 个 motif 模板**：先做 `LDO_3V3` / `去耦阵列` / `无源晶振` 三个，验证模板会真的被用上。
-5. **fixtures + ratings**：攒到 8 条人工评分后校准权重，把 `calibration` 从 UNFIT 改成 FIT。
+1. **adapter**：用 `getAllPinsByPrimitiveId` 取真实引脚 → `sch_PrimitiveComponent.create` / `sch_PrimitiveWire` / `createNetFlag` / `createNetPort` 落图。没有它，plan 不能落地。
+2. **官方基线**：先跑 `sch_Document.autoLayout()` 记录分数。自研布局必须跑赢它，否则方向错了。
+3. **真实数据校准 schema**：用 3 张真实页面 dump 验证 `pins` 与 `label.align` 两个最可疑字段。
+4. **替换 PLACEHOLDER 常量**：跑 `measure --write`，更新 provenance。
+5. **15 个 motif 模板**：先做 `LDO_3V3` / `去耦阵列` / `无源晶振` 三个，验证模板会真的被用上。
+6. **fixtures + ratings**：攒到 8 条人工评分后校准权重，把 `calibration` 从 UNFIT 改成 FIT。
 
 ## 阻塞
 
@@ -35,6 +36,9 @@
 
 ## 已知坑
 
+- `sch_Document.autoLayout()` 是**黑盒**：只吃 uuids / netlist / designatorDeviceTypeMap，没有间距/分区/朝向入口。别指望调参能改善它（D10）。
+- 原理图**没有 DRC**，PCB 才有 `PCB_Drc.check()`。别去找原理图的检查接口（D13）。
+- `SCH_Netlist.getNetlist` 已 obsolete，改用 `SCH_ManufactureData.getNetlistFile`；`setNetlist` 是 BETA（D11）。
 - 沙箱代理只放通 `api.github.com`，**不放通 `github.com`**。git 操作必须先 `env -u https_proxy -u HTTPS_PROXY -u http_proxy -u HTTP_PROXY`，并加 `-c http.version=HTTP/1.1`，且**必须重试 3–5 次**（前几次常报 Connection reset / Could not connect）。
 - WorkBuddy 的 GitHub MCP connector 只读，建仓与写文件都 403。推代码一律走 git CLI。
 - 本环境 `cmd` 被禁，建 junction 用 `New-Item -ItemType Junction`。
@@ -42,4 +46,4 @@
 
 ## 最近一次改动
 
-2026-11-16 初始化 v0.1.0。下一个改动从这里接着写。
+2026-11-16 补 D10–D13：查清官方 autoLayout 不可参数化、netlistComparison 可做往返校验、原理图无 DRC。adapter 与 layout 的落地方式据此修正。

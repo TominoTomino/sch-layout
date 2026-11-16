@@ -76,3 +76,42 @@
 
 **为什么**：`layout.mjs` 用的是抽象外框模型（元件当成 30×40 的矩形），与真实符号几何不一致。直接把外框坐标写进 EDA 会得到一张错位的图。
 **现在**：plan 是中间产物，落图由未实现的 adapter 完成（见 `SKILL.md` 的 adapter 一节）。在 adapter 存在之前，plan 只能用于自检，不能落地。
+
+---
+
+## D10 — 官方 autoLayout 存在，但不可参数化
+
+**发现**：`SCH_Document.autoLayout(props?)`（Beta）确实存在，配套还有 `autoRouting`。参数只有三个：`uuids`、`netlist`（`{component:{[id]:{pinInfoMap}}}`）、`designatorDeviceTypeMap`（把位号映射成 resistor/capacitor/chip 等 8 类）。
+
+**结论**：它是黑盒。间距、分区、朝向、跨块策略——一个入口都没有。所以它只能产出「连得上但不合你习惯」的图，而这恰好就是本项目要解决的问题本身。
+
+**用法**：**保留它当基线**。任何自研布局必须跑赢官方 autoLayout，跑不赢说明方向错了。这是一次免费对照组，不要跳过。
+
+---
+
+## D11 — round-trip 用官方 netlistComparison，不自己写解析
+
+`SYS_Tool.netlistComparison(n1, n2)` 直接返回差异数组（`type: 'Net' | 'Component'`）。
+`SCH_ManufactureData.getNetlistFile(name, type)` 可导出 `JLCEDA_PRO` / `EASYEDA_PRO` / `ALTIUM_DESIGNER` / `PADS` / `ALLEGRO` / `PROTEL2`。
+
+**结论**：Weave 论文里那套「生成后回读、逐网比对」的连通性证书，官方已经给了原语。**不要自己写网表解析器**——那是纯浪费。
+
+**注意**：`SCH_Netlist.getNetlist` 已标记 obsolete（改用 `SCH_ManufactureData.getNetlistFile`）；`setNetlist` 是 BETA，写回网表要谨慎。
+
+---
+
+## D12 — 跨块连接用正式符号，不用 wire + 文本标签
+
+`SCH_PrimitiveComponent.createNetFlag('Power' | 'Ground' | 'AnalogGround' | 'ProtectGround', net, x, y, rotation, mirror)`
+`SCH_PrimitiveComponent.createNetPort('IN' | 'OUT' | 'BI', net, x, y, rotation, mirror)`
+
+**结论**：`layout.mjs` 现在输出「短桩 + 文本标签」，落图时应替换成这两类符号。朝向由 `rotation` 控制，正好用来表达「电源朝上、地朝下」，比纯文本标签更符合制图惯例。
+
+---
+
+## D13 — 原理图没有 DRC
+
+PCB 侧有 `PCB_Drc.check()`，原理图侧**没有任何**电气或可读性检查接口。`SCH_Document` 的方法总共只有四个：`autoLayout` / `autoRouting` / `importChanges` / `save`。
+
+**结论**：本项目的 lint 不是重复造轮子，是补空白。这条是继续投入 lint 的最强理由。
+
