@@ -9,6 +9,7 @@ description: 原理图布局与可读性检查（嘉立创EDA专业版 / EasyEDA
 
 ## 开工自检
 
+0. **先读 `STATUS.md`**（仓库根目录）。里面有版本、待办、阻塞和已知坑。没有它你会重做已完成的事、重踩已踩过的坑。
 1. 读 `rules/constants.json` 的 `version`。若 `provenance.*.source === "PLACEHOLDER"`，说明常量还没从真实样板测出来，**先跑 measure，不要直接布局**。
 2. 目录不存在 `rules/` 或 `scripts/` → 环境不完整，让用户执行仓库里的 `install.sh` / `install.ps1`。
 
@@ -52,6 +53,29 @@ node scripts/layout.mjs  <design.json> [--out plan.json] [--emit-page page.json]
 4. 落图后再 `measure` 一次，比对实际间距与 plan 的偏差
 
 在 adapter 存在之前，**不要把 plan 坐标直接写进 EDA**，外框模型和真实符号几何不一致。
+
+## 改造本 skill 的流程
+
+用户说「这张图还是不好看」「改成这样」时，**不要直接改代码**。按这个顺序：
+
+1. **先复现** — 把问题做成一个最小的 `page.json` 放进 `fixtures/<name>/`，附 `expect.json` 和一句 `note.md` 说明当时的问题。没有可复现的输入，改完无法判断是否真的改好了。
+2. **归类** — 只问一个问题：这是哪一层的缺陷？
+   - 几何可判定（参差、重叠、穿体、斜线）→ 加 `lint` 规则
+   - 布局策略不对（分区、流向、绕路）→ 改 `layout.mjs`
+   - 数值不对（间距、净空、短桩）→ 重新 `measure`，不手调
+   - 只有人能判断（分区合不合理、命名习惯）→ 写 `references/style.md`
+3. **只改一层** — 一次动多层，就不知道是谁修好的。
+4. **回归** — 跑完 `fixtures/` 全部用例，对比改前改后。
+5. **收尾** — 更新 `STATUS.md`；有新的设计取舍就追加进 `design-notes.md`；commit message 写「为什么」而不是「改了什么」。
+
+**反模式**：为了让分数好看去改图，而不是让图变好看。分数是度量，不是目标。权重未校准时尤其如此（design-notes D7）。
+
+## 会话收尾
+
+结束前必须做两件事，否则下个对话等于从零开始：
+
+1. 更新 `STATUS.md` 的「已完成 / 待办 / 阻塞 / 最近一次改动」
+2. 若这次动了 `constants.json` 或 `lint-rules.json`，确认 version 已递增
 
 ## 失败处理
 

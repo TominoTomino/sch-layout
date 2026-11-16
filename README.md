@@ -78,6 +78,7 @@ node scripts/lint.mjs out/page.json
 ## 目录
 
 ```
+STATUS.md     进度、待办、阻塞、已知坑 —— 开工先读，收工更新
 scripts/      measure / lint / layout + lib
 rules/        constants.json（measure 产出）· lint-rules.json（只增不减）
 references/   design-notes.md（决定与理由）· style.md（不可判定的惯例）
