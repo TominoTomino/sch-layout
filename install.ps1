@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$RepoUrl = if ($env:SCH_LAYOUT_REPO) { $env:SCH_LAYOUT_REPO } else { "https://github.com/CHANGE_ME/sch-layout.git" }
+$RepoUrl = if ($env:SCH_LAYOUT_REPO) { $env:SCH_LAYOUT_REPO } else { "https://github.com/TominoTomino/sch-layout.git" }
 $Src     = if ($env:SCH_LAYOUT_SRC)  { $env:SCH_LAYOUT_SRC }  else { Join-Path $HOME "code\sch-layout" }
 $Skills  = if ($env:SCH_LAYOUT_SKILLS) { $env:SCH_LAYOUT_SKILLS } else { Join-Path $HOME ".workbuddy\skills" }
 $Dest    = Join-Path $Skills "sch-layout"

@@ -24,7 +24,7 @@
 ## 快速开始
 
 ```bash
-git clone <this-repo> ~/code/sch-layout
+git clone https://github.com/TominoTomino/sch-layout.git ~/code/sch-layout
 cd ~/code/sch-layout
 
 # 1. 看一份故意画坏的演示页

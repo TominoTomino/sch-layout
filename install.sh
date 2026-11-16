@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${SCH_LAYOUT_REPO:-https://github.com/CHANGE_ME/sch-layout.git}"
+REPO_URL="${SCH_LAYOUT_REPO:-https://github.com/TominoTomino/sch-layout.git}"
 SRC="${SCH_LAYOUT_SRC:-$HOME/code/sch-layout}"
 SKILLS_DIR="${SCH_LAYOUT_SKILLS:-$HOME/.workbuddy/skills}"
 DEST="$SKILLS_DIR/sch-layout"
