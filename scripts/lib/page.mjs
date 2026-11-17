@@ -229,3 +229,110 @@ export function detectArrays(page) {
   }
   return inArray;
 }
+
+// ---- property text -------------------------------------------------------
+// The same glyph-width estimate used for net labels, applied to component
+// property text. Latin ~7 units per char, CJK ~12, line height 12 at the default
+// font size; these are the same numbers the label checker uses, so the two
+// agree instead of drifting apart.
+export function textExtent(text, fontSize) {
+  const scale = fontSize ? Math.min(2, Math.max(0.6, fontSize / 12)) : 1;
+  let w = 0;
+  for (const ch of String(text || '')) {
+    w += /[\u4e00-\u9fff]/.test(ch) ? 12 : 7;
+  }
+  return { w: w * scale, h: 12 * scale };
+}
+
+// Visible property text of one component, in page coordinates. `align` is not
+// exposed by the API (it came back null), so the anchor is treated as the
+// left edge - the conservative choice: it may over-estimate on the right, but
+// never under-estimates where the glyphs actually fall.
+export function attrBBox(attr) {
+  if (!attr || attr.visible === false) return null;
+  const { w, h } = textExtent(attr.value, attr.fontSize);
+  if (!w) return null;
+  const rot = ((attr.rotation ?? 0) % 360 + 360) % 360;
+  const vertical = rot === 90 || rot === 270;
+  const bw = vertical ? h : w;
+  const bh = vertical ? w : h;
+  return { x: attr.x, y: attr.y - bh / 2, w: bw, h: bh };
+}
+
+// Everything a component visually occupies: symbol body plus its visible text.
+export function footprintBBox(c) {
+  // Never silently collapse to the text box alone: a missing bbox means the
+  // caller skipped loadPage(), and returning a 14x12 rect there would make a
+  // whole component look empty (and every collision check pass).
+  let box = c.bbox ? { ...c.bbox } : (c.pins && c.pins.length ? deriveBBoxFromPins(c) : null);
+  for (const a of c.attrs || []) {
+    const t = attrBBox(a);
+    if (!t) continue;
+    if (!box) { box = { ...t }; continue; }
+    const x0 = Math.min(box.x, t.x), y0 = Math.min(box.y, t.y);
+    const x1 = Math.max(box.x + box.w, t.x + t.w);
+    const y1 = Math.max(box.y + box.h, t.y + t.h);
+    box = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+  return box;
+}
+
+// ---- designator placement ------------------------------------------------
+// A designator belongs on a side of the symbol that has neither pins nor a
+// neighbour. Both facts are computable, which is why this is a rule and not a
+// prompt: "put the reference somewhere sensible" cannot be executed, but
+// "skip sides with pins, then sides with neighbours" can.
+//
+// Pin rotation points outward (D18), so rotation encodes the side the pin
+// leaves from: 0 = right, 90 = top, 180 = left, 270 = bottom.
+export function pinSides(c) {
+  const sides = new Set();
+  for (const p of c.pins || []) {
+    const r = ((p.rotation ?? 0) % 360 + 360) % 360;
+    if (r === 0) sides.add('right');
+    else if (r === 90) sides.add('top');
+    else if (r === 180) sides.add('left');
+    else if (r === 270) sides.add('bottom');
+  }
+  return sides;
+}
+
+// Candidate text box for one side. `gap` is clearance from the body, `h` the
+// line height; the box is centred along the side it sits on.
+export function sideSlot(box, side, textW, opts = {}) {
+  const gap = opts.gap ?? 5;
+  const h = opts.h ?? 12;
+  if (side === 'right') return { x: box.x + box.w + gap, y: box.y + box.h / 2 - h / 2, w: textW, h };
+  if (side === 'left') return { x: box.x - gap - textW, y: box.y + box.h / 2 - h / 2, w: textW, h };
+  if (side === 'top') return { x: box.x + box.w / 2 - textW / 2, y: box.y + box.h + gap, w: textW, h };
+  return { x: box.x + box.w / 2 - textW / 2, y: box.y - gap - h, w: textW, h };
+}
+
+const rectHit = (a, b) => !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+const inside = (a, r) => a.x >= r.x && a.y >= r.y && a.x + a.w <= r.x + r.w && a.y + a.h <= r.y + r.h;
+
+// Decide where a designator goes. Returns { side, rect } or null when no side
+// is free - in which case the caller should grow the clearance, not guess.
+// `prefer` lets a layout express symmetry: passing ['left'] for one member of a
+// pair and ['right'] for its mirror gives outward-facing labels.
+export function chooseDesignatorSide(c, box, textW, neighbours = [], rect = null, prefer = null) {
+  const blocked = pinSides(c);
+  const order = prefer || ['bottom', 'top', 'right', 'left'];
+  const fallback = [];
+  for (const side of order) {
+    const slot = sideSlot(box, side, textW);
+    if (blocked.has(side)) continue;
+    if (rect && !inside(slot, rect)) continue;
+    if (neighbours.some((n) => n && rectHit(slot, n))) { fallback.push(side); continue; }
+    return { side, rect: slot, clean: true };
+  }
+  // Nothing clean: return the first geometrically possible side so the caller
+  // can report it instead of silently leaving the label where it was.
+  for (const side of order) {
+    if (blocked.has(side)) continue;
+    const slot = sideSlot(box, side, textW);
+    if (rect && !inside(slot, rect)) continue;
+    return { side, rect: slot, clean: false };
+  }
+  return null;
+}

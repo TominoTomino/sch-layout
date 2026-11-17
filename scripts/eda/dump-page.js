@@ -48,6 +48,32 @@ for (const id of partIds) {
   const c = arr && arr[0];
   if (!c) continue;
   const pins = (await eda.sch_PrimitiveComponent.getAllPinsByPrimitiveId(id)) || [];
+  // Property text (designator, part name) is a separate primitive with its own
+  // coordinates, so a component's visual footprint is larger than its symbol
+  // BBOX. Without this, placing two parts 10 units apart looks fine in the data
+  // and reads as an overlap on the sheet (D46).
+  let attrs = [];
+  try {
+    const raw = (await eda.sch_PrimitiveAttribute.getAll(id)) || [];
+    attrs = raw
+      .filter(function (a) {
+        return a.key === 'Designator' || a.key === 'Name' || a.key === 'Value';
+      })
+      .map(function (a) {
+        return {
+          key: a.key,
+          value: a.value == null ? '' : String(a.value),
+          x: rnd(a.x),
+          y: rnd(a.y),
+          rotation: a.rotation || 0,
+          fontSize: a.fontSize || null,
+          // keyVisible/valueVisible decide whether the glyphs are drawn at all.
+          visible: a.valueVisible !== false
+        };
+      });
+  } catch (e) {
+    out.attributeError = String(e && e.message ? e.message : e);
+  }
   out.components.push({
     id: c.primitiveId,
     designator: c.designator || '',
@@ -61,6 +87,7 @@ for (const id of partIds) {
     subPart: c.subPartName || '',
     footprint: (c.footprint && c.footprint.name) || '',
     net: c.net || '',
+    attrs: attrs,
     pins: pins.map(function (p) {
       return {
         num: String(p.pinNumber),

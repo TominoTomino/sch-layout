@@ -8,7 +8,8 @@ import {
 } from './lib/geometry.mjs';
 import {
   loadPage, wireSegments, buildNodeIndex, wireCorners,
-  capabilities, contentBBox, labelBBox, labelAnchor, pointKey, detectArrays
+  capabilities, contentBBox, labelBBox, labelAnchor, pointKey, detectArrays,
+  attrBBox, footprintBBox
 } from './lib/page.mjs';
 import { bboxToPage } from './epro.mjs';
 
@@ -34,6 +35,17 @@ function parseArgs(argv) {
 }
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
+
+// Glyph width is estimated (7 units per latin char), so an overlap of one or two
+// units is measurement noise, not a defect. Treat anything under half a character
+// as touching, not covering - the same reasoning as the overlap-area ratio in D27.
+function textReallyCovers(t, o) {
+  const w = Math.min(t.x + t.w, o.x + o.w) - Math.max(t.x, o.x);
+  const h = Math.min(t.y + t.h, o.y + o.h) - Math.max(t.y, o.y);
+  return w >= 5 && h >= 5;
+}
+
+
 
 function loadWaivers() {
   const f = join(ROOT, 'rules/waivers.json');
@@ -138,6 +150,56 @@ const RULE_IMPL = {
     for (const l of page.labels) {
       const a = labelAnchor(l);
       if (bad(a[0]) || bad(a[1])) items.push({ ref: `label:${l.id}`, detail: `标签连接点 (${a[0]}, ${a[1]}) 不在 ${g} 栅格` });
+    }
+    return items;
+  },
+
+  // Property text is a separate primitive: a designator can sit outside its own
+  // symbol body and land on a neighbour. The symbol BBOX says nothing about it,
+  // which is exactly how DS1's label ended up on DS2 (D46).
+  // Text whose length is known (a designator, a literal value) is a defect when
+  // it lands on a neighbour.
+  'text-overlap': (page) => {
+    const items = [];
+    const comps = page.components.filter(c => c.bbox);
+    for (const c of comps) {
+      for (const a of c.attrs || []) {
+        if (/^=\{.*\}$/.test(String(a.value || ''))) continue;
+        const t = attrBBox(a);
+        if (!t) continue;
+        for (const o of comps) {
+          if (o.id === c.id) continue;
+          if (!textReallyCovers(t, o.bbox)) continue;
+          items.push({
+            ref: `${c.designator}.${a.key} / ${o.designator || o.id}`,
+            detail: `"${a.value}" 压在 ${o.designator || o.id} 的符号上`
+          });
+        }
+      }
+    }
+    return items;
+  },
+
+  // `={Value}` / `={Manufacturer Part}` render whatever the part's field says, and
+  // the API does not expose that string, so the width below is a guess. Reported
+  // as a hint, never as an error (D46).
+  'text-overlap-unknown': (page) => {
+    const items = [];
+    const comps = page.components.filter(c => c.bbox);
+    for (const c of comps) {
+      for (const a of c.attrs || []) {
+        if (!/^=\{.*\}$/.test(String(a.value || ''))) continue;
+        const t = attrBBox(a);
+        if (!t) continue;
+        for (const o of comps) {
+          if (o.id === c.id) continue;
+          if (!textReallyCovers(t, o.bbox)) continue;
+          items.push({
+            ref: `${c.designator}.${a.key} / ${o.designator || o.id}`,
+            detail: `型号文字（${a.value}，长度未知）可能压在 ${o.designator || o.id} 上，按 ${Math.round(t.w)} 单位估算`
+          });
+        }
+      }
     }
     return items;
   },

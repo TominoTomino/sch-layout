@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0.1.0",
-  "version": "0.4.3",
+  "version": "0.5.1",
   "note": "Rules are append-only. Adding a rule is the normal way this project improves; deleting one requires a written reason in references/design-notes.md.",
   "rules": [
     {
@@ -25,6 +25,28 @@
       "desc": "坐标不在栅格上",
       "why": "不在同一栅格上的元件与导线，放大后就看出参差，是最廉价也最致命的可读性损失。",
       "geometry": "exact"
+    },
+    {
+      "id": "text-overlap",
+      "severity": "error",
+      "weight": 1.0,
+      "requires": [
+        "components"
+      ],
+      "geometry": "approx",
+      "desc": "元件属性字（位号/型号）压在其他元件符号上",
+      "why": "位号是独立图元，有自己的坐标，常在符号本体之外。用符号 BBOX 摆放会把这个占位漏掉，两个元件看似间距够、实际位号叠在邻居身上（D46）。"
+    },
+    {
+      "id": "text-overlap-unknown",
+      "severity": "info",
+      "weight": 0.1,
+      "requires": [
+        "components"
+      ],
+      "geometry": "approx",
+      "desc": "型号文字（变量模板）估算框与邻居相交，长度未知",
+      "why": "`={Value}` 渲染成元件的 Value 字符串，接口不暴露该字符串，宽度只能估算。报为提示而非错误（D46）。"
     },
     {
       "id": "overlap",

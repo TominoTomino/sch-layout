@@ -65,10 +65,19 @@ function main() {
 
   const targetBy = new Map(target.components.map((c) => [c.designator, c]));
 
+  // A component's visual footprint is its symbol body PLUS its designator text,
+  // which is a separate primitive that usually sits outside the body. Sizing by
+  // the body alone is how DS1's label ended up on DS2 while the numbers said the
+  // gap was fine (D46). The text line is reserved below the body so vertical
+  // placement is unchanged, but rows now carry room for it.
+  const TEXT_LINE = 17;
   const boxOf = (c) => {
     const s = sym[c.symbolUuid];
-    if (!s || !s.bbox) return { x: -10, y: -10, w: 20, h: 20 };
-    return bboxToPage(s.bbox, { x: 0, y: 0, rotation: c.rotation || 0, mirror: !!c.mirror });
+    const body = s && s.bbox
+      ? bboxToPage(s.bbox, { x: 0, y: 0, rotation: c.rotation || 0, mirror: !!c.mirror })
+      : { x: -10, y: -10, w: 20, h: 20 };
+    const tw = [...(c.designator || '')].reduce((t, ch) => t + (/[\u4e00-\u9fff]/.test(ch) ? 12 : 7), 0);
+    return { x: body.x, y: body.y - TEXT_LINE, w: Math.max(body.w, tw), h: body.h + TEXT_LINE };
   };
 
   // ---- fixed set: declared, never inferred ----
