@@ -18,7 +18,7 @@ const ROOT = resolve(HERE, '..');
 const SEVERITY_RANK = { error: 0, warn: 1, info: 2 };
 
 function parseArgs(argv) {
-  const args = { file: null, format: 'text', verbose: false, rules: null, constants: null, symbols: null };
+  const args = { files: [], format: 'text', verbose: false, rules: null, constants: null, symbols: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--json') args.format = 'json';
@@ -28,12 +28,30 @@ function parseArgs(argv) {
     else if (a === '--constants') args.constants = argv[++i];
     else if (a === '--symbols') args.symbols = argv[++i];
     else if (a === '--help' || a === '-h') args.help = true;
-    else if (!a.startsWith('-')) args.file = a;
+    else if (!a.startsWith('-')) args.files.push(a);
   }
   return args;
 }
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
+
+function loadWaivers() {
+  const f = join(ROOT, 'rules/waivers.json');
+  if (!existsSync(f)) return [];
+  try { return readJson(f).waivers || []; } catch { return []; }
+}
+
+// A waiver names a rule and a designator pair; the item's ref is 'A / B'.
+// Order-insensitive so the pair means the same thing however it was found.
+function isWaived(waivers, ruleId, item) {
+  const parts = String(item.ref || '').split('/').map(x => x.trim());
+  if (parts.length !== 2) return false;
+  const key = [parts[0], parts[1]].sort().join('|');
+  return waivers.some(w => {
+    if (w.rule !== ruleId || !Array.isArray(w.pair)) return false;
+    return [...w.pair].sort().join('|') === key;
+  });
+}
 const fmt = (n, d = 1) => (Number.isFinite(n) ? Number(n.toFixed(d)) : '-');
 
 
@@ -61,13 +79,26 @@ function computeOverlaps(page, C) {
       });
     }
   }
+  return pairs;
+}
+
+// Style is a property of the designer, not of one sheet: a ratio that looks
+// unique on page 7 may occur 18 times across the project (D28).
+function overlapTally(pairsList) {
   const tally = new Map();
-  for (const p of pairs) {
-    if (!p.symA || p.symA !== p.symB) continue;
-    const k = p.symA + '@' + p.bucket;
-    tally.set(k, (tally.get(k) || 0) + 1);
+  for (const pairs of pairsList) {
+    for (const p of pairs) {
+      if (!p.symA || p.symA !== p.symB) continue;
+      const k = p.symA + '@' + p.bucket;
+      tally.set(k, (tally.get(k) || 0) + 1);
+    }
   }
+  return tally;
+}
+
+function applyTally(pairs, tally) {
   for (const p of pairs) {
+    p.array = false;
     if (!p.symA || p.symA !== p.symB) continue;
     const k = p.symA + '@' + p.bucket;
     if ((tally.get(k) || 0) >= 2) p.array = true;
@@ -323,6 +354,10 @@ function renderText(rep, verbose) {
     L.push(`  ${approxPassed.map(r => r.id).join(' / ')} 报 0，是"用引脚云近似没查到"，不是"确认没问题"。`);
     L.push('  符号本体轮廓拿不到（D24），图形复杂的符号上可能漏报重叠与穿体。');
   }
+  if (rep.suppressed) {
+    L.push('');
+    L.push(`已按 rules/waivers.json 抑制 ${rep.suppressed} 条（每条都有理由与日期，见文件）`);
+  }
   if (rep.pageIssues?.length) {
     L.push('');
     L.push('数据质量');
@@ -353,28 +388,13 @@ function renderMd(rep) {
   return L.join('\n');
 }
 
-function main() {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help || !args.file) {
-    console.log(`用法: sch-lint <page.json> [--json|--md] [-v] [--rules ...] [--constants ...]
-
-退出码: 0 通过 / 1 有 error 级问题 / 2 输入或内部错误`);
-    process.exit(args.help ? 0 : 2);
-  }
-  if (!existsSync(args.file)) {
-    console.error(`找不到页面文件: ${args.file}`);
-    process.exit(2);
-  }
-
-  const R = readJson(args.rules ? resolve(args.rules) : join(ROOT, 'rules/lint-rules.json'));
-  const C = readJson(args.constants ? resolve(args.constants) : join(ROOT, 'rules/constants.json'));
-  const { page, issues } = loadPage(args.file);
+function runOne(file, args, R, C, symbols, tally) {
+  const { page, issues } = loadPage(file);
   const caps = capabilities(page);
 
   // Real symbol outlines, if the project was exported to .epro and parsed (D26).
   let bboxSource = 'pin-cloud';
-  if (args.symbols) {
-    const { symbols } = readJson(resolve(args.symbols));
+  if (symbols) {
     let real = 0, missing = 0;
     for (const c of page.components) {
       const s = symbols[c.symbolUuid];
@@ -386,7 +406,10 @@ function main() {
     issues.push({ level: missing ? 'warn' : 'info', code: 'bbox-source', msg: `外形来源: ${bboxSource}` });
   }
 
-  page.__overlaps = computeOverlaps(page, C);
+  page.__overlaps = applyTally(computeOverlaps(page, C), tally);
+
+  const waivers = loadWaivers();
+  let suppressed = 0;
 
   const ruleResults = R.rules.map(rule => {
     const missing = (rule.requires || []).filter(k => !caps[k]);
@@ -394,7 +417,10 @@ function main() {
     const impl = RULE_IMPL[rule.id];
     if (!impl) return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing: ['实现缺失'] };
     try {
-      const items = impl(page, C) || [];
+      let items = impl(page, C) || [];
+      const before = items.length;
+      items = items.filter(it => !isWaived(waivers, rule.id, it));
+      suppressed += before - items.length;
       return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: items.length ? 'fail' : 'pass', count: items.length, items };
     } catch (e) {
       return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing: [`执行异常: ${e.message}`] };
@@ -413,21 +439,67 @@ function main() {
     schemaVersion: page.schemaVersion,
     skillVersion: C.version,
     rulesVersion: R.version,
-    file: args.file,
+    file,
     source: page.source,
     capabilities: caps,
     pageIssues: issues,
     rules: ruleResults,
     metrics,
     bboxSource,
+    suppressed,
     score: { ...score, calibrated: false }
   };
 
-  if (args.format === 'json') console.log(JSON.stringify(rep, null, 2));
-  else if (args.format === 'md') console.log(renderMd(rep));
-  else console.log(renderText(rep, args.verbose));
+  return rep;
+}
 
-  process.exit(ruleResults.some(r => r.status === 'fail' && r.severity === 'error') ? 1 : 0);
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.help || !args.files.length) {
+    console.log(`用法: sch-lint <page.json> [更多 page.json ...] [--json|--md] [-v]
+              [--symbols symbols.json] [--rules ...] [--constants ...]
+
+给多个页面时，'同型号重叠比例' 的统计跨全部页面进行——画法习惯是跨页的，
+只看单页会把设计间距误判成碰撞（D28）。
+
+退出码: 0 通过 / 1 有 error 级问题 / 2 输入或内部错误`);
+    process.exit(args.help ? 0 : 2);
+  }
+  for (const f of args.files) {
+    if (!existsSync(f)) { console.error(`找不到页面文件: ${f}`); process.exit(2); }
+  }
+
+  const R = readJson(args.rules ? resolve(args.rules) : join(ROOT, 'rules/lint-rules.json'));
+  const C = readJson(args.constants ? resolve(args.constants) : join(ROOT, 'rules/constants.json'));
+  const symbols = args.symbols ? readJson(resolve(args.symbols)).symbols : null;
+
+  // First pass: compute overlap ratios for every page so the style tally is global.
+  const perPage = args.files.map(f => {
+    const { page } = loadPage(f);
+    if (symbols) {
+      for (const c of page.components) {
+        const s = symbols[c.symbolUuid];
+        const box = s ? bboxToPage(s.bbox, c) : null;
+        if (box && box.w > 0 && box.h > 0) c.bbox = box;
+      }
+    }
+    return computeOverlaps(page, C);
+  });
+  const tally = overlapTally(perPage);
+
+  let anyError = false;
+  const reps = [];
+  for (const f of args.files) {
+    const rep = runOne(f, args, R, C, symbols, tally);
+    reps.push(rep);
+    if (rep.rules.some(r => r.status === 'fail' && r.severity === 'error')) anyError = true;
+  }
+
+  if (args.format === 'json') console.log(JSON.stringify(reps.length === 1 ? reps[0] : reps, null, 2));
+  else if (args.format === 'md') reps.forEach(r => console.log(renderMd(r)));
+  else reps.forEach((r, i) => { if (i) console.log(''); console.log(renderText(r, args.verbose)); });
+
+  process.exit(anyError ? 1 : 0);
 }
 
 main();
