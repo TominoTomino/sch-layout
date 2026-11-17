@@ -161,9 +161,15 @@ const RULE_IMPL = {
           items.push({ ref: `label:${l.id}`, detail: `"${l.text}" 压在 ${c.designator || c.id} 上` });
         }
       }
+      // Wires the label is actually attached to are not "overlaps" — a power flag
+      // sitting on a wire corner always covers the wire's other arm.
+      const ownWires = new Set();
       for (const s of wireSegments(page)) {
-        const anchored = [s.a, s.b].some(p => Math.abs(p[0] - a[0]) <= 1 && Math.abs(p[1] - a[1]) <= 1);
-        if (anchored) continue;
+        const atEnd = [s.a, s.b].some(p => Math.abs(p[0] - a[0]) <= 1 && Math.abs(p[1] - a[1]) <= 1);
+        if (atEnd || pointOnSegment(a, s.a, s.b)) ownWires.add(s.wireId);
+      }
+      for (const s of wireSegments(page)) {
+        if (ownWires.has(s.wireId)) continue;
         if (segmentCrossesRect(s.a, s.b, r, 1, 0)) {
           items.push({ ref: `label:${l.id}`, detail: `"${l.text}" 压在 wire:${s.wireId} 上` });
         }
