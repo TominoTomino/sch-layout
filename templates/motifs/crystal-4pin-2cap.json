@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "0.1.0",
+  "kind": "motif",
+  "id": "crystal-4pin-2cap",
+  "grid": 5,
+  "anchor": "osc",
+  "bbox": {
+    "x0": 0,
+    "y0": -25,
+    "x1": 85,
+    "y1": 10
+  },
+  "slots": [
+    {
+      "role": "osc",
+      "pins": 4,
+      "symbol": "XL2EL89CSI-111YLC-8M",
+      "dx": 0,
+      "dy": 0,
+      "rotation": 0,
+      "mirror": false
+    },
+    {
+      "role": "cap_xi",
+      "pins": 2,
+      "symbol": "CC0603JRNPO9BN200",
+      "dx": 85,
+      "dy": 10,
+      "rotation": 0,
+      "mirror": false
+    },
+    {
+      "role": "cap_xo",
+      "pins": 2,
+      "symbol": "CC0603JRNPO9BN200",
+      "dx": 85,
+      "dy": -25,
+      "rotation": 0,
+      "mirror": false
+    }
+  ],
+  "nets": [
+    {
+      "role": "GND",
+      "members": [
+        "osc.2",
+        "osc.4",
+        "cap_xi.2",
+        "cap_xo.2"
+      ],
+      "external": true,
+      "single": false
+    },
+    {
+      "role": "HUB_XI",
+      "members": [
+        "osc.3",
+        "cap_xi.1"
+      ],
+      "external": true,
+      "single": false
+    },
+    {
+      "role": "HUB_XO",
+      "members": [
+        "osc.1",
+        "cap_xo.1"
+      ],
+      "external": true,
+      "single": false
+    }
+  ],
+  "source": {
+    "project": "基于CW32的COM端口号可视化集线器",
+    "page": "",
+    "pageUuid": "86bacb9be3ff4bd7826bf263bfdf0ea0",
+    "extractedFrom": "X1,XC1,XC2",
+    "extractedAt": "2026-11-17T06:22:07.660Z"
+  }
+}

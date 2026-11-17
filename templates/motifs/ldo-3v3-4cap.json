@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "0.1.0",
+  "kind": "motif",
+  "id": "ldo-3v3-4cap",
+  "grid": 5,
+  "anchor": "ldo",
+  "bbox": {
+    "x0": -105,
+    "y0": -105,
+    "x1": 65,
+    "y1": 0
+  },
+  "slots": [
+    {
+      "role": "ldo",
+      "pins": 5,
+      "symbol": "ME6211C33M5G-N",
+      "dx": 0,
+      "dy": 0,
+      "rotation": 0,
+      "mirror": false
+    },
+    {
+      "role": "cap_in",
+      "pins": 2,
+      "symbol": "CL10A105KB8NNNC",
+      "dx": -105,
+      "dy": -10,
+      "rotation": 90,
+      "mirror": false
+    },
+    {
+      "role": "cap_in_bulk",
+      "pins": 2,
+      "symbol": "CL21A475KAQNNNE",
+      "dx": -5,
+      "dy": -105,
+      "rotation": 90,
+      "mirror": false
+    },
+    {
+      "role": "cap_out",
+      "pins": 2,
+      "symbol": "CL10A105KB8NNNC",
+      "dx": 65,
+      "dy": -10,
+      "rotation": 90,
+      "mirror": false
+    },
+    {
+      "role": "cap_out_bulk",
+      "pins": 2,
+      "symbol": "CL21A475KAQNNNE",
+      "dx": -55,
+      "dy": -105,
+      "rotation": 90,
+      "mirror": false
+    },
+    {
+      "role": "en_pullup",
+      "pins": 2,
+      "symbol": "0603WAF1002T5E",
+      "dx": -70,
+      "dy": -10,
+      "rotation": 0,
+      "mirror": true
+    }
+  ],
+  "nets": [
+    {
+      "role": "5VOUT",
+      "members": [
+        "ldo.1",
+        "cap_in.2",
+        "cap_in_bulk.2",
+        "en_pullup.2"
+      ],
+      "external": true,
+      "single": false
+    },
+    {
+      "role": "GND",
+      "members": [
+        "ldo.2",
+        "cap_in.1",
+        "cap_in_bulk.1",
+        "cap_out.1",
+        "cap_out_bulk.1"
+      ],
+      "external": true,
+      "single": false
+    },
+    {
+      "role": "$1N8173",
+      "members": [
+        "ldo.3",
+        "en_pullup.1"
+      ],
+      "external": false,
+      "single": false
+    },
+    {
+      "role": "3V3OUT",
+      "members": [
+        "ldo.5",
+        "cap_out.2",
+        "cap_out_bulk.2"
+      ],
+      "external": true,
+      "single": false
+    }
+  ],
+  "source": {
+    "project": "基于CW32的COM端口号可视化集线器",
+    "page": "",
+    "pageUuid": "86bacb9be3ff4bd7826bf263bfdf0ea0",
+    "extractedFrom": "C10,C11,C13,C14,R6,U4",
+    "extractedAt": "2026-11-17T06:22:07.813Z"
+  }
+}
