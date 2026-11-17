@@ -21,7 +21,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadPage, chooseTextSlot, pinSegments, textExtent, attrBBox } from './lib/page.mjs';
+import { loadPage, chooseTextSlot, pinSegments, textExtent, attrBBox, wireSegments } from './lib/page.mjs';
 import { bboxToPage } from './epro.mjs';
 import { findBridge, exec } from './bridge.mjs';
 
@@ -73,6 +73,9 @@ function plan(page, sym, opts) {
 
   // Text placed earlier in this pass becomes an obstacle for everything later,
   // otherwise two neighbours each "cleanly" pick the same gap.
+  // Text is the last thing placed on a page, so it has to dodge the wires that
+  // are already there (D48). Empty on a page that has not been routed yet.
+  const wires = wireSegments(page).map((sg) => ({ a: sg.a, b: sg.b }));
   const placed = [];
   const out = [];
 
@@ -88,7 +91,7 @@ function plan(page, sym, opts) {
     const desAttr = (t.attrs || []).find((a) => a.key === 'Designator');
     const desText = desAttr ? (desAttr.rendered != null ? desAttr.rendered : desAttr.value) : t.designator;
     const ds = chooseTextSlot(body, {
-      textW: textExtent(desText).w, neighbours: others, rect, kind: 'designator', pins
+      textW: textExtent(desText).w, neighbours: others, rect, kind: 'designator', pins, wires
     });
     if (ds) {
       row.designatorSide = ds.side;
@@ -113,7 +116,7 @@ function plan(page, sym, opts) {
         const w = textExtent(nameText, fs).w;
         if (w > capW && fs !== 6) continue;
         const ns = chooseTextSlot(body, {
-          textW: w, neighbours: others.concat(placed), rect, kind: 'name', pins
+          textW: w, neighbours: others.concat(placed), rect, kind: 'name', pins, wires
         });
         if (ns && ns.clean) { chosen = { ...ns, fontSize: fs }; break; }
         if (!chosen && ns) chosen = { ...ns, fontSize: fs };

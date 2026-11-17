@@ -359,7 +359,7 @@ const CORNERS = new Set(['topLeft', 'topRight', 'bottomLeft', 'bottomRight']);
 // block, landing on a pin stub, landing on a neighbour. Returns null only when
 // nothing is left - the caller should widen the gap rather than guess.
 export function chooseTextSlot(box, opts) {
-  const { textW, neighbours = [], rect = null, kind = 'designator', pins = [], prefer = null } = opts;
+  const { textW, neighbours = [], rect = null, kind = 'designator', pins = [], prefer = null, wires = [] } = opts;
   const order = prefer || TEXT_PRIORITY[kind] || TEXT_PRIORITY.designator;
   let firstPossible = null;
   // Direction first, then clearance. The reverse order was a bug: trying gap 5 on
@@ -371,6 +371,10 @@ export function chooseTextSlot(box, opts) {
       if (rect && !inside(slot, rect)) continue;
       if (!firstPossible) firstPossible = { side, rect: slot };
       if (pins.some((sg) => segmentCrossesRect(sg.a, sg.b, slot, 0, 0))) continue;
+      // Wires are the fourth kind of obstacle. This matters only after routing
+      // (D48): text is placed last precisely so it can dodge the wires, and a
+      // rule that ignores them would drop a name straight onto one.
+      if (wires.some((sg) => segmentCrossesRect(sg.a, sg.b, slot, 0, 0))) continue;
       if (neighbours.some((n) => n && rectHit(slot, n))) continue;
       return { side, rect: slot, clean: true, gap };
     }
