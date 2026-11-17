@@ -1,8 +1,8 @@
 {
   "schemaVersion": "0.2.0",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "unit": "0.01in",
-  "grid": 10,
+  "grid": 5,
   "spacing": {
     "componentMin": 20,
     "blockGap": 40,
@@ -48,6 +48,54 @@
       "source": "PLACEHOLDER",
       "method": "assumed",
       "n": 0
+    },
+    "grid": {
+      "source": "measure on 3 real projects",
+      "method": "grid coverage mode (largest grid with >=95% coverage)",
+      "n": 3,
+      "samples": [
+        {
+          "project": "CW32 hub",
+          "components": 174,
+          "grid": 5,
+          "coverage": 1
+        },
+        {
+          "project": "ouya 过欠压",
+          "components": 59,
+          "grid": 5,
+          "coverage": 0.983
+        },
+        {
+          "project": "yosemite DRAM",
+          "components": 34,
+          "grid": 5,
+          "coverage": 1
+        }
+      ]
+    }
+  },
+  "styleObservations": {
+    "_note": "实测到的数值，不是标准。三项之间差异达数倍，说明它们随项目风格变化，不能当全局常量用（D41）。",
+    "componentGapPeak": {
+      "CW32 hub": 60,
+      "ouya": 50,
+      "yosemite DRAM": 40
+    },
+    "blockGapPeak": {
+      "CW32 hub": 120,
+      "ouya": 100,
+      "yosemite DRAM": 80
+    },
+    "pinStubMedian": {
+      "CW32 hub": 5,
+      "ouya": 30,
+      "yosemite DRAM": 35
+    },
+    "labelClearanceMedian": {
+      "CW32 hub": 5,
+      "ouya": 30,
+      "yosemite DRAM": 0
     }
   }
 }
