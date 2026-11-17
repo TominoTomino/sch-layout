@@ -8,14 +8,14 @@
 
 | | |
 |---|---|
-| skill | 0.3.0 |
-| 规则 | 0.3.0 |
+| skill | 0.3.1 |
+| 规则 | 0.3.1 |
 | schema | 0.2.0 |
-| 常量 | 0.3.0 — **仍是 PLACEHOLDER**（已有 16 张真实页，但未跑 measure 定值） |
+| 常量 | 0.3.1 |
 
 ## 已完成
 
-- `lint.mjs` — 8 条规则 + 指标（交叉/拐点/分支点/总线长/填充率），缺数据标 skipped
+- `lint.mjs` — 报告末尾自陈盲区（D25）；规则标注 geometry 依赖；8 条规则 + 指标（交叉/拐点/分支点/总线长/填充率），缺数据标 skipped
 - `measure.mjs` — 栅格覆盖率 / 间距双峰 / 短桩 / 净空；`--write` 递增 version 并写 provenance
 - `layout.mjs` — 连通性分层（排除电源网）、跨层用网络标签、L 型避障路由
 - **`dump.mjs` + `scripts/eda/dump-page.js`** — 从 EDA 直接取 `page.json`，自动扫 49620-49629

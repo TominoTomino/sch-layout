@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0.1.0",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "note": "Rules are append-only. Adding a rule is the normal way this project improves; deleting one requires a written reason in references/design-notes.md.",
   "rules": [
     {
@@ -12,7 +12,8 @@
         "wires"
       ],
       "desc": "坐标不在栅格上",
-      "why": "不在同一栅格上的元件与导线，放大后就看出参差，是最廉价也最致命的可读性损失。"
+      "why": "不在同一栅格上的元件与导线，放大后就看出参差，是最廉价也最致命的可读性损失。",
+      "geometry": "exact"
     },
     {
       "id": "overlap",
@@ -22,7 +23,8 @@
         "components"
       ],
       "desc": "元件包围盒相交",
-      "why": "重叠直接导致无法辨认符号与文字。"
+      "why": "重叠直接导致无法辨认符号与文字。",
+      "geometry": "approx"
     },
     {
       "id": "pin-unconnected",
@@ -32,7 +34,8 @@
         "pinNet"
       ],
       "desc": "引脚没有网络归属（真正未连接）",
-      "why": "以 EDA 自己导出的网表为准。设计者主动标了 NC 的引脚不算。这是唯一可信的连通性判据。"
+      "why": "以 EDA 自己导出的网表为准。设计者主动标了 NC 的引脚不算。这是唯一可信的连通性判据。",
+      "geometry": "exact"
     },
     {
       "id": "dangling-wire",
@@ -43,7 +46,8 @@
         "wires"
       ],
       "desc": "导线端点几何上不接触任何引脚/标签/线段",
-      "why": "仅作排版参考。实测 42 条里 24 条附近存在同网络引脚，网表也判定已连接——引脚的可连接范围比 (x,y) 端点大，几何判断不可靠。真连通性见 pin-unconnected。"
+      "why": "仅作排版参考。实测 42 条里 24 条附近存在同网络引脚，网表也判定已连接——引脚的可连接范围比 (x,y) 端点大，几何判断不可靠。真连通性见 pin-unconnected。",
+      "geometry": "exact"
     },
     {
       "id": "diagonal",
@@ -53,7 +57,8 @@
         "wires"
       ],
       "desc": "存在斜线段",
-      "why": "斜线破坏正交网格感，也让交叉判定变复杂。"
+      "why": "斜线破坏正交网格感，也让交叉判定变复杂。",
+      "geometry": "exact"
     },
     {
       "id": "too-many-bends",
@@ -63,7 +68,8 @@
         "wires"
       ],
       "desc": "单条导线拐点超过上限",
-      "why": "绕远路的导线会让读者失去追踪兴趣。"
+      "why": "绕远路的导线会让读者失去追踪兴趣。",
+      "geometry": "exact"
     },
     {
       "id": "wire-through-body",
@@ -74,7 +80,8 @@
         "wires"
       ],
       "desc": "导线穿过元件本体",
-      "why": "基于包围盒近似判定，边距已内缩，可能误报；但真命中时非常难看。"
+      "why": "基于包围盒近似判定，边距已内缩，可能误报；但真命中时非常难看。",
+      "geometry": "approx"
     },
     {
       "id": "density",
@@ -84,7 +91,8 @@
         "components"
       ],
       "desc": "单页元件数超过上限",
-      "why": "超过阈值后布局算法无法兼顾，人眼也无法一次看懂，应拆页。"
+      "why": "超过阈值后布局算法无法兼顾，人眼也无法一次看懂，应拆页。",
+      "geometry": "exact"
     },
     {
       "id": "label-overlap",
@@ -95,7 +103,8 @@
         "labels"
       ],
       "desc": "网络标签与元件或导线重叠",
-      "why": "标签压线是自动生成原理图最常见的可读性杀手。"
+      "why": "标签压线是自动生成原理图最常见的可读性杀手。",
+      "geometry": "approx"
     }
   ],
   "metrics": [
@@ -145,5 +154,6 @@
     },
     "calibration": "PARTIAL: 4 human ratings. Metrics excluded from scoring; violation penalty linear. Refit only if more ratings show residuals.",
     "perRuleCap": 40
-  }
+  },
+  "geometryNote": "exact = 只依赖坐标/网表/线段，结论可信；approx = 依赖符号本体轮廓，而轮廓不可得（D24），只能按引脚云近似，0 命中不代表没问题"
 }

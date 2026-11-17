@@ -284,6 +284,17 @@ function renderText(rep, verbose) {
   L.push('');
   L.push('指标');
   L.push(`  交叉 ${rep.metrics.crossings} · 拐点 ${rep.metrics.bends} · 分支点 ${rep.metrics.junctions} · 总线长 ${fmt(rep.metrics.wireLength, 0)} · 填充率 ${fmt(rep.metrics.compactness, 2)}`);
+
+  // Honesty about blind spots: rules that need symbol outlines are only
+  // approximations, so a zero there does not mean "verified clean" (D24).
+  const approx = rep.rules.filter(r => (r.geometry || 'exact') === 'approx');
+  const approxPassed = approx.filter(r => r.status === 'pass');
+  if (approxPassed.length) {
+    L.push('');
+    L.push('本报告看不见什么');
+    L.push(`  ${approxPassed.map(r => r.id).join(' / ')} 报 0，是"用引脚云近似没查到"，不是"确认没问题"。`);
+    L.push('  符号本体轮廓拿不到（D24），图形复杂的符号上可能漏报重叠与穿体。');
+  }
   if (rep.pageIssues?.length) {
     L.push('');
     L.push('数据质量');
@@ -347,6 +358,11 @@ function main() {
 
   const metrics = computeMetrics(page);
   const score = scoreOf(ruleResults, metrics, R);
+
+  for (const r of ruleResults) {
+    const def = R.rules.find(x => x.id === r.id);
+    r.geometry = def ? (def.geometry || 'exact') : 'exact';
+  }
 
   const rep = {
     schemaVersion: page.schemaVersion,
