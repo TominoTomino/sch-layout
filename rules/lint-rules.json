@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0.1.0",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "note": "Rules are append-only. Adding a rule is the normal way this project improves; deleting one requires a written reason in references/design-notes.md.",
   "rules": [
     {
@@ -103,31 +103,35 @@
       "id": "crossings",
       "weight": 0.35,
       "desc": "导线交叉数（共享端点不算）",
-      "normalize": "perComponent"
+      "normalize": "perComponent",
+      "scoringWeight": 0
     },
     {
       "id": "bends",
       "weight": 0.25,
       "desc": "拐点总数",
-      "normalize": "perComponent"
+      "normalize": "perComponent",
+      "scoringWeight": 0
     },
     {
       "id": "wireLength",
       "weight": 0.2,
       "desc": "导线总长（栅格单位）",
-      "normalize": "perComponent"
+      "normalize": "perComponent",
+      "scoringWeight": 0
     },
     {
       "id": "compactness",
       "weight": 0.2,
       "desc": "内容外接框填充率，过低说明散得太开",
-      "normalize": "ratio"
+      "normalize": "ratio",
+      "scoringWeight": 0
     }
   ],
   "scoring": {
-    "formula": "score = clamp(100 - violationPenalty - metricPenalty, 0, 100)",
-    "violationPenalty": "sum(weight * severityMult * 4 * log2(1 + count))",
-    "metricPenalty": "sum(weight * normalizedValue * 40)",
+    "formula": "score = clamp(100 - violationPenalty, 0, 100)  (指标仅报告，不计分，见 D23)",
+    "violationPenalty": "sum over failing rules of min(weight * severityMult * count, perRuleCap)",
+    "metricPenalty": "disabled (D23)",
     "severityMult": {
       "error": 1,
       "warn": 0.55,
@@ -139,6 +143,7 @@
       "wireLength_perComponent": 60,
       "compactness_idealMin": 0.25
     },
-    "calibration": "UNFIT. Weights are priors, not fitted values. Once 8+ pages carry a human rating in fixtures/ratings.json, refit by least squares and record the result in design-notes D7."
+    "calibration": "PARTIAL: 4 human ratings. Metrics excluded from scoring; violation penalty linear. Refit only if more ratings show residuals.",
+    "perRuleCap": 40
   }
 }

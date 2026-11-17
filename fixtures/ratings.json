@@ -6,9 +6,9 @@
     "band": "lt60",
     "humanApprox": 50,
     "humanComment": "要重排",
-    "toolScore": 49.1,
-    "toolVersion": "0.2.2",
-    "note": "band 为中点近似，不是精确分。原话：60 以下要重排。"
+    "toolScoreOld": 49.1,
+    "toolScoreNew": 66.1,
+    "note": "band 为中点近似。旧计分碰巧接近，新计分高估 16 分——残差最大的一页。"
   },
   {
     "page": "fixtures/private/cw32-hub/page.json",
@@ -17,8 +17,38 @@
     "band": "gte90",
     "humanApprox": 92,
     "humanComment": "不用解释，同事看一遍就懂",
-    "toolScore": 64.3,
-    "toolVersion": "0.2.2",
-    "note": "band 为中点近似。原话：90+ 直接能交。"
+    "toolScoreOld": 64.3,
+    "toolScoreNew": 88.9,
+    "note": "旧计分低估 28。单页 174 元件在用户工作流里属正常，不该被 density 罚。"
+  },
+  {
+    "page": "fixtures/private/yosemite/2.json",
+    "label": "Yosemite / DRAM（组 A）",
+    "components": 34,
+    "band": "gte90",
+    "humanApprox": 92,
+    "humanComment": "不用解释，同事看一遍就懂",
+    "toolScoreOld": 85.4,
+    "toolScoreNew": 96.5,
+    "note": "同一项目最高分页。"
+  },
+  {
+    "page": "fixtures/private/yosemite/6.json",
+    "label": "Yosemite / PREP（组 A）",
+    "components": 57,
+    "band": "gte90",
+    "humanApprox": 92,
+    "humanComment": "不用解释，同事看一遍就懂",
+    "toolScoreOld": 73.6,
+    "toolScoreNew": 95.5,
+    "note": "同一项目最低分页。与 DRAM 人工同档，但旧计分差 12 分——这是推翻指标计分的直接证据。"
+  },
+  {
+    "_meta": {
+      "skillVersion": "0.3.0",
+      "ratingScale": "band 四档：lt60 / 60-70 / 75-85 / gte90，取中点近似",
+      "n": 4,
+      "conclusion": "见 references/design-notes.md D23"
+    }
   }
 ]

@@ -8,10 +8,10 @@
 
 | | |
 |---|---|
-| skill | 0.2.2 |
-| 规则 | 0.2.0 |
+| skill | 0.3.0 |
+| 规则 | 0.3.0 |
 | schema | 0.2.0 |
-| 常量 | 0.2.2 — **仍是 PLACEHOLDER**（已有两张真实页，但未跑 measure 定值） |
+| 常量 | 0.3.0 — **仍是 PLACEHOLDER**（已有 16 张真实页，但未跑 measure 定值） |
 
 ## 已完成
 
@@ -23,17 +23,18 @@
 - **D18 已确认**：`(x,y)` 是引脚外端＝连接点，`rotation` 朝外，`len` 向内收。极简页 `samples/min-two-resistors.json`（91 分 A，零问题）作为金标准
 - 修掉 D19/D20 两处假阳性：包围盒去掉 padding（大图 overlap 9 → **0**）；零长线段不再计入拐点与结点
 - **D21 连通性改用网表**（`pins[].net`）：新增 `pin-unconnected`（error），`dangling-wire` 降为 info。大图 42 条悬空里 24 条是误报，真实未接引脚只有 **2 个**（DS1.3 / DS2.3）
-- 两张真实页面：过欠压 59 元件 **49.1 (D)** · CW32 174 元件 **64.3 (C)**（存 `fixtures/private/`，未提交）
-- **首批人工评分已入库**（`fixtures/ratings.json`）：工具排序与人工一致，但刻度被压平（D22）
+- 两张真实页面：过欠压 59 元件 **49.1→66.1** · CW32 174 元件 **64.3→88.9**（存 `fixtures/private/`）
+- Yosemite 工程 13 页全量扫描：95.5–99.3（一页连接器细节页 58.8 为异常样本，已排除）
+- **4 个人工评分点**（`fixtures/ratings.json`）：D23 据此把指标退出计分、缺陷改线性扣分
 
 ## 待办（按优先级）
 
-1. **再攒 2–4 张带评分的页面**（写进 `fixtures/ratings.json`）。n=2 只能验证排序，不能拟合刻度；够 4–6 张再做权重拟合。
-2. **处理两个死指标**（D22）——`wireLength` 与 `compactness` 在所有真实页面上都撞封顶，合计恒定扣 18 分。这不是校准问题，是结构缺陷。
-3. **adapter 落图** — `getAllPinsByPrimitiveId` → `sch_PrimitiveComponent.create` / `sch_PrimitiveWire` / `createNetFlag` / `createNetPort`
-4. **官方基线** — **复制一份工程**后跑 `sch_Document.autoLayout()`，与 49.1 / 64.3 对比。绝不在原图上跑
-5. **27 条 grid-off 吸附** — 已定位全是导线端点，写成 snap + 网表比对 + 不合格回滚
-6. **15 个 motif 模板** — 先做 `LDO_3V3` / `去耦阵列` / `无源晶振`
+1. **再攒 2 张带评分的页面**（n=6）。现在的残差集中在 ouya 高估 16 分，需要新样本判断是 grid-off 权重不够，还是那页另有问题。
+2. **adapter 落图** — `getAllPinsByPrimitiveId` → `sch_PrimitiveComponent.create` / `sch_PrimitiveWire` / `createNetFlag` / `createNetPort`
+3. **官方基线** — **复制一份工程**后跑 `sch_Document.autoLayout()`，与现有分数对比。绝不在原图上跑
+4. **snap 工具** — 把导线端点吸回栅格 + 网表比对 + 不合格回滚（ouya 有 27 处可作首个用例）
+5. **15 个 motif 模板** — 先做 `LDO_3V3` / `去耦阵列` / `无源晶振`
+6. **清理 density 规则** — 用户工作流里单页 174 元件属正常，`maxComponentsPerPage=20` 是错的，但它现在只扣 0.33 分，不急
 
 ## 阻塞
 
@@ -59,4 +60,4 @@
 
 ## 最近一次改动
 
-2026-11-17 收了第二张真实页与首批人工评分（D22）：排序正确，刻度被压平，两个死指标合计恒定扣 18 分。下一步是攒够样本再拟合。
+2026-11-17 D23：指标退出计分、缺陷改线性扣分（4 个人工评分点支撑）。三张"90+"页面从 64-85 收敛到 88.9-96.5。

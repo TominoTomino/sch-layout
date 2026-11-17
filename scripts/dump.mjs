@@ -8,12 +8,13 @@ const ROOT = resolve(HERE, '..');
 const PORTS = Array.from({ length: 10 }, (_, i) => 49620 + i);
 
 function parseArgs(argv) {
-  const a = { out: null, port: null, script: null };
+  const a = { out: null, port: null, script: null, page: null };
   for (let i = 0; i < argv.length; i++) {
     const t = argv[i];
     if (t === '--out' || t === '-o') a.out = argv[++i];
     else if (t === '--port') a.port = Number(argv[++i]);
     else if (t === '--script') a.script = argv[++i];
+    else if (t === '--page') a.page = argv[++i];
     else if (t === '--help' || t === '-h') a.help = true;
   }
   return a;
@@ -53,7 +54,10 @@ if (!found.health.edaConnected) {
 }
 
 const scriptPath = args.script ? resolve(args.script) : join(HERE, 'eda/dump-page.js');
-const code = readFileSync(scriptPath, 'utf8');
+let code = readFileSync(scriptPath, 'utf8');
+if (args.page) {
+  code = `await eda.dmt_EditorControl.openDocument('${args.page}');\n` + code;
+}
 
 const res = await fetch(`http://127.0.0.1:${found.port}/execute`, {
   method: 'POST',

@@ -228,11 +228,19 @@ function computeMetrics(page) {
 
 function scoreOf(ruleResults, metrics, R) {
   const mult = R.scoring.severityMult;
+  // Penalty is linear in the number of instances, capped per rule.
+  // Rationale (design-notes D23): log2 compression flattened real differences
+  // (27 grid violations cost less than they look), while the metric penalties
+  // measured page SIZE rather than readability — 12 pages rated equally good by
+  // the designer scored 73.6-85.4 because of them, and 94.5-99.4 without.
   let violationPenalty = 0;
   for (const r of ruleResults) {
     if (r.status !== 'fail') continue;
-    violationPenalty += r.weight * (mult[r.severity] ?? 0.5) * 4 * Math.log2(1 + r.count);
+    const raw = r.weight * (mult[r.severity] ?? 0.5) * r.count;
+    violationPenalty += Math.min(raw, R.scoring.perRuleCap ?? 40);
   }
+
+  // Metrics stay as reported numbers; they no longer move the score.
   const ref = R.scoring.metricReference;
   const norm = {
     crossings: Math.min(metrics.perComponent.crossings / ref.crossings_perComponent, 1.5),
@@ -240,8 +248,8 @@ function scoreOf(ruleResults, metrics, R) {
     wireLength: Math.min(metrics.perComponent.wireLength / ref.wireLength_perComponent, 1.5),
     compactness: Math.max(0, 1 - metrics.compactness / ref.compactness_idealMin)
   };
-  let metricPenalty = 0;
-  for (const m of R.metrics) metricPenalty += m.weight * (norm[m.id] ?? 0) * 40;
+  const metricPenalty = 0;
+
   const score = Math.max(0, Math.min(100, 100 - violationPenalty - metricPenalty));
   const grade = score >= 90 ? 'A' : score >= 75 ? 'B' : score >= 60 ? 'C' : 'D';
   return { score, grade, violationPenalty, metricPenalty, normalized: norm };
