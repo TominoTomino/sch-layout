@@ -1,15 +1,17 @@
 {
   "name": "sch-layout",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Deterministic schematic layout + readability lint for EasyEDA Pro (LCEDA) schematics",
   "bin": {
+    "sch-dump": "scripts/dump.mjs",
     "sch-measure": "scripts/measure.mjs",
     "sch-lint": "scripts/lint.mjs",
     "sch-layout": "scripts/layout.mjs"
   },
   "scripts": {
+    "dump": "node scripts/dump.mjs",
     "measure": "node scripts/measure.mjs",
     "lint": "node scripts/lint.mjs",
     "layout": "node scripts/layout.mjs",

@@ -29,7 +29,7 @@ function detectGrid(page) {
     vals.push(c.x, c.y);
     for (const p of c.pins || []) vals.push(p.x, p.y);
   }
-  for (const w of page.wires) for (const p of w.points) vals.push(p[0], p[1]);
+  for (const w of page.wires) for (const s of (w.segments || [])) vals.push(s[0], s[1], s[2], s[3]);
   if (!vals.length) return { grid: page.grid ?? null, coverage: null, note: '无坐标' };
 
   const rounded = vals.map(v => Math.round(v));
@@ -95,13 +95,14 @@ function stubLengths(page) {
   const pinAt = (p) => pins.find(q => Math.round(q.point[0]) === Math.round(p[0]) && Math.round(q.point[1]) === Math.round(p[1]));
   const out = [];
   for (const w of page.wires) {
-    if (w.points.length !== 2) continue;
-    const [a, b] = w.points;
-    const aLabel = labelPoints.has(`${Math.round(a[0])}|${Math.round(a[1])}`);
-    const bLabel = labelPoints.has(`${Math.round(b[0])}|${Math.round(b[1])}`);
-    const aPin = pinAt(a), bPin = pinAt(b);
-    if ((aLabel && bPin) || (bLabel && aPin)) {
-      out.push(Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]));
+    for (const s of (w.segments || [])) {
+      const a = [s[0], s[1]], b = [s[2], s[3]];
+      const aLabel = labelPoints.has(`${Math.round(a[0])}|${Math.round(a[1])}`);
+      const bLabel = labelPoints.has(`${Math.round(b[0])}|${Math.round(b[1])}`);
+      const aPin = pinAt(a), bPin = pinAt(b);
+      if ((aLabel && bPin) || (bLabel && aPin)) {
+        out.push(Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]));
+      }
     }
   }
   return out;

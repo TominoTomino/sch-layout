@@ -112,6 +112,20 @@ export function polylineLength(points) {
   return len;
 }
 
+export function segmentLength(a, b) {
+  return Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
+}
+
+export function pointOnSegment(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy);
+  if (len < EPS) return ptEq(p, a);
+  const cross = dx * (p[1] - a[1]) - dy * (p[0] - a[0]);
+  if (Math.abs(cross) / len > 1e-3) return false;
+  const dot = (p[0] - a[0]) * dx + (p[1] - a[1]) * dy;
+  return dot >= -EPS && dot <= len * len + EPS;
+}
+
 export function gcdInt(a, b) {
   a = Math.abs(Math.round(a));
   b = Math.abs(Math.round(b));

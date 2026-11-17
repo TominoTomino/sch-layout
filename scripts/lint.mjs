@@ -3,12 +3,12 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  isOrthogonal, rectsOverlap, rectContainsPoint, segmentCrossesRect,
-  properCrossing, countBends, polylineLength, deflate, median
+  isOrthogonal, rectsOverlap, segmentCrossesRect,
+  properCrossing, segmentLength, pointOnSegment, deflate
 } from './lib/geometry.mjs';
 import {
-  loadPage, indexPins, wireSegments, buildEndpointIndex, capabilities,
-  contentBBox, labelBBox
+  loadPage, wireSegments, buildNodeIndex, wireCorners,
+  capabilities, contentBBox, labelBBox, labelAnchor, pointKey
 } from './lib/page.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -31,36 +31,28 @@ function parseArgs(argv) {
   return args;
 }
 
-function readJson(p) {
-  return JSON.parse(readFileSync(p, 'utf8'));
-}
-
-function fmt(n, d = 1) {
-  return Number.isFinite(n) ? Number(n.toFixed(d)) : '-';
-}
-
-// ---------- rules ----------
+const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
+const fmt = (n, d = 1) => (Number.isFinite(n) ? Number(n.toFixed(d)) : '-');
 
 const RULE_IMPL = {
   'grid-off': (page, C) => {
     const g = page.grid || C.grid;
     const items = [];
+    const bad = (v) => Math.abs(v % g) > 1e-6;
     for (const c of page.components) {
-      if (Math.abs(c.x % g) > 1e-6 || Math.abs(c.y % g) > 1e-6) {
-        items.push({ ref: c.designator || c.id, detail: `元件原点 (${c.x}, ${c.y}) 不在 ${g} 栅格` });
-      }
+      if (bad(c.x) || bad(c.y)) items.push({ ref: c.designator || c.id, detail: `元件原点 (${c.x}, ${c.y}) 不在 ${g} 栅格` });
       for (const p of c.pins || []) {
-        if (Math.abs(p.x % g) > 1e-6 || Math.abs(p.y % g) > 1e-6) {
-          items.push({ ref: `${c.designator}.${p.num}`, detail: `引脚 (${p.x}, ${p.y}) 不在 ${g} 栅格` });
-        }
+        if (bad(p.x) || bad(p.y)) items.push({ ref: `${c.designator}.${p.num}`, detail: `引脚 (${p.x}, ${p.y}) 不在 ${g} 栅格` });
       }
     }
-    for (const w of page.wires) {
-      for (const p of w.points) {
-        if (Math.abs(p[0] % g) > 1e-6 || Math.abs(p[1] % g) > 1e-6) {
-          items.push({ ref: `wire:${w.id}`, detail: `导线点 (${p[0]}, ${p[1]}) 不在 ${g} 栅格` });
-        }
+    for (const s of wireSegments(page)) {
+      for (const pt of [s.a, s.b]) {
+        if (bad(pt[0]) || bad(pt[1])) items.push({ ref: `wire:${s.wireId}`, detail: `导线端点 (${pt[0]}, ${pt[1]}) 不在 ${g} 栅格` });
       }
+    }
+    for (const l of page.labels) {
+      const a = labelAnchor(l);
+      if (bad(a[0]) || bad(a[1])) items.push({ ref: `label:${l.id}`, detail: `标签连接点 (${a[0]}, ${a[1]}) 不在 ${g} 栅格` });
     }
     return items;
   },
@@ -70,11 +62,8 @@ const RULE_IMPL = {
     const cs = page.components.filter(c => c.bbox && (c.bbox.w || c.bbox.h));
     for (let i = 0; i < cs.length; i++) {
       for (let j = i + 1; j < cs.length; j++) {
-        if (rectsOverlap(cs[i].bbox, cs[j].bbox, 0.5)) {
-          items.push({
-            ref: `${cs[i].designator || cs[i].id} / ${cs[j].designator || cs[j].id}`,
-            detail: '包围盒相交'
-          });
+        if (rectsOverlap(cs[i].bbox, cs[j].bbox, 1)) {
+          items.push({ ref: `${cs[i].designator || cs[i].id} / ${cs[j].designator || cs[j].id}`, detail: '包围盒相交' });
         }
       }
     }
@@ -82,31 +71,25 @@ const RULE_IMPL = {
   },
 
   'dangling-wire': (page) => {
-    const idx = buildEndpointIndex(page);
+    const nodes = buildNodeIndex(page);
+    const allSegs = wireSegments(page);
     const items = [];
-    for (const w of page.wires) {
-      if (w.points.length < 2) {
-        items.push({ ref: `wire:${w.id}`, detail: '导线少于两个点' });
-        continue;
-      }
-      for (const [tag, pt] of [['起点', w.points[0]], ['终点', w.points[w.points.length - 1]]]) {
-        const hits = idx.lookup(pt).filter(h => !(h.kind === 'wire-end' && h.ref.wireId === w.id));
-        if (!hits.length) {
-          items.push({ ref: `wire:${w.id}`, detail: `${tag} (${pt[0]}, ${pt[1]}) 悬空，未落在引脚/导线端点/标签上` });
-        }
-      }
+    for (const [k, node] of nodes) {
+      if (!node.segments.length) continue;
+      if (node.pins.length || node.labels.length) continue;
+      if (node.segments.length >= 2) continue;
+      const tJunction = allSegs.some(s =>
+        pointKey(s.a) !== k && pointKey(s.b) !== k && pointOnSegment(node.point, s.a, s.b));
+      if (tJunction) continue;
+      items.push({ ref: `wire:${node.segments[0].wireId}`, detail: `端点 (${node.point[0]}, ${node.point[1]}) 悬空` });
     }
     return items;
   },
 
   'diagonal': (page) => {
     const items = [];
-    for (const w of page.wires) {
-      for (let i = 1; i < w.points.length; i++) {
-        if (!isOrthogonal(w.points[i - 1], w.points[i])) {
-          items.push({ ref: `wire:${w.id}`, detail: `第 ${i} 段为斜线` });
-        }
-      }
+    for (const s of wireSegments(page)) {
+      if (!isOrthogonal(s.a, s.b)) items.push({ ref: `wire:${s.wireId}`, detail: `段 (${s.a}) → (${s.b}) 为斜线` });
     }
     return items;
   },
@@ -115,37 +98,29 @@ const RULE_IMPL = {
     const max = C.routing.maxBendsPerWire;
     const items = [];
     for (const w of page.wires) {
-      const b = countBends(w.points);
-      if (b > max) items.push({ ref: `wire:${w.id}`, detail: `${b} 个拐点，上限 ${max}` });
+      const segs = (w.segments || []).map((s, i) => ({ wireId: w.id, index: i, a: [s[0], s[1]], b: [s[2], s[3]] }));
+      const { corners } = wireCorners(segs);
+      if (corners > max) items.push({ ref: `wire:${w.id}`, detail: `${corners} 个拐点，上限 ${max}` });
     }
     return items;
   },
 
   'wire-through-body': (page, C) => {
-    const inset = C.grid;
-    const minLen = C.grid * 2;
     const items = [];
     const pinSet = new Set();
     for (const c of page.components) {
       for (const p of c.pins || []) pinSet.add(`${Math.round(p.x)}|${Math.round(p.y)}|${c.id}`);
     }
-    for (const w of page.wires) {
-      for (let i = 1; i < w.points.length; i++) {
-        const a = w.points[i - 1], b = w.points[i];
-        for (const c of page.components) {
-          if (!c.bbox) continue;
-          const ownsA = pinSet.has(`${Math.round(a[0])}|${Math.round(a[1])}|${c.id}`);
-          const ownsB = pinSet.has(`${Math.round(b[0])}|${Math.round(b[1])}|${c.id}`);
-          if (ownsA && ownsB) continue;
-          const shrink = deflate(c.bbox, inset);
-          if (!shrink) continue;
-          if ((ownsA || ownsB) && (rectContainsPoint(shrink, a) || rectContainsPoint(shrink, b))) continue;
-          if (segmentCrossesRect(a, b, c.bbox, minLen, inset)) {
-            items.push({
-              ref: `wire:${w.id} → ${c.designator || c.id}`,
-              detail: `第 ${i} 段穿过元件本体（包围盒内缩 ${inset} 判定，可能误报）`
-            });
-          }
+    const minLen = C.grid * 2;
+    for (const s of wireSegments(page)) {
+      for (const c of page.components) {
+        if (!c.bbox) continue;
+        const ownsA = pinSet.has(`${Math.round(s.a[0])}|${Math.round(s.a[1])}|${c.id}`);
+        const ownsB = pinSet.has(`${Math.round(s.b[0])}|${Math.round(s.b[1])}|${c.id}`);
+        if (ownsA || ownsB) continue;
+        const inset = Math.min(20, Math.max(C.grid, Math.min(c.bbox.w, c.bbox.h) / 3));
+        if (segmentCrossesRect(s.a, s.b, c.bbox, minLen, inset)) {
+          items.push({ ref: `wire:${s.wireId} → ${c.designator || c.id}`, detail: '段穿过元件本体（包围盒近似，可能误报）' });
         }
       }
     }
@@ -155,77 +130,77 @@ const RULE_IMPL = {
   'density': (page, C) => {
     const max = C.limits.maxComponentsPerPage;
     const n = page.components.length;
-    return n > max ? [{ ref: 'page', detail: `${n} 个元件，上限 ${max}，建议拆页` }] : [];
+    return n > max ? [{ ref: 'page', detail: `${n} 个元件，上限 ${max}` }] : [];
   },
 
   'label-overlap': (page) => {
     const items = [];
-    const lb = page.labels.map(l => ({ l, r: labelBBox(l) }));
-    for (const { l, r } of lb) {
+    for (const l of page.labels) {
+      const r = labelBBox(l);
+      const a = labelAnchor(l);
       for (const c of page.components) {
-        if (c.bbox && rectsOverlap(r, c.bbox, 0.5)) {
-          items.push({ ref: `label:${l.id}`, detail: `标签 "${l.text}" 压在 ${c.designator || c.id} 上` });
+        if (!c.bbox) continue;
+        const attached = a[0] >= c.bbox.x - 1 && a[0] <= c.bbox.x + c.bbox.w + 1 &&
+                         a[1] >= c.bbox.y - 1 && a[1] <= c.bbox.y + c.bbox.h + 1;
+        if (attached) continue;
+        if (rectsOverlap(r, c.bbox, 1)) {
+          items.push({ ref: `label:${l.id}`, detail: `"${l.text}" 压在 ${c.designator || c.id} 上` });
         }
       }
-      for (const w of page.wires) {
-        // A label anchored on a wire endpoint is normal, not a defect.
-        const anchored = w.points.some(p => Math.abs(p[0] - l.x) <= 1 && Math.abs(p[1] - l.y) <= 1);
+      for (const s of wireSegments(page)) {
+        const anchored = [s.a, s.b].some(p => Math.abs(p[0] - a[0]) <= 1 && Math.abs(p[1] - a[1]) <= 1);
         if (anchored) continue;
-        let hit = false;
-        for (let i = 1; i < w.points.length && !hit; i++) {
-          if (segmentCrossesRect(w.points[i - 1], w.points[i], r, 1, 0)) hit = true;
+        if (segmentCrossesRect(s.a, s.b, r, 1, 0)) {
+          items.push({ ref: `label:${l.id}`, detail: `"${l.text}" 压在 wire:${s.wireId} 上` });
         }
-        if (hit) items.push({ ref: `label:${l.id}`, detail: `标签 "${l.text}" 压在 wire:${w.id} 上` });
       }
     }
     return items;
   }
 };
 
-// ---------- metrics ----------
-
 function computeMetrics(page) {
   const segs = wireSegments(page);
-  let crossings = 0;
   const byWire = new Map();
   for (const s of segs) {
     if (!byWire.has(s.wireId)) byWire.set(s.wireId, []);
     byWire.get(s.wireId).push(s);
   }
-  const wireIds = [...byWire.keys()];
-  for (let i = 0; i < wireIds.length; i++) {
-    for (let j = i + 1; j < wireIds.length; j++) {
-      const A = byWire.get(wireIds[i]), B = byWire.get(wireIds[j]);
-      const netA = A[0]?.net, netB = B[0]?.net;
-      if (netA && netB && netA === netB) continue;
+  const ids = [...byWire.keys()];
+  let crossings = 0;
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const A = byWire.get(ids[i]), B = byWire.get(ids[j]);
+      const na = A[0]?.net, nb = B[0]?.net;
+      if (na && nb && na === nb) continue;
       for (const a of A) for (const b of B) if (properCrossing(a.a, a.b, b.a, b.b)) crossings++;
     }
   }
 
-  let bends = 0, wireLength = 0;
-  for (const w of page.wires) {
-    bends += countBends(w.points);
-    wireLength += polylineLength(w.points);
+  let bends = 0, junctions = 0, wireLength = 0;
+  for (const [, list] of byWire) {
+    const r = wireCorners(list);
+    bends += r.corners;
+    junctions += r.junctions;
+    for (const s of list) wireLength += segmentLength(s.a, s.b);
   }
 
   const cb = contentBBox(page);
   const contentArea = Math.max(cb.w * cb.h, 1);
   const sumComp = page.components.reduce((s, c) => s + (c.bbox ? c.bbox.w * c.bbox.h : 0), 0);
   const compactness = Math.min(sumComp / contentArea, 1);
-
   const n = Math.max(page.components.length, 1);
+
   return {
-    crossings, bends, wireLength, compactness,
-    perComponent: {
-      crossings: crossings / n,
-      bends: bends / n,
-      wireLength: wireLength / n
-    },
+    crossings, bends, junctions, wireLength, compactness,
+    perComponent: { crossings: crossings / n, bends: bends / n, wireLength: wireLength / n },
     counts: {
       components: page.components.length,
       wires: page.wires.length,
+      segments: segs.length,
       labels: page.labels.length,
-      segments: segs.length
+      texts: page.texts.length,
+      pins: page.components.reduce((s, c) => s + (c.pins?.length || 0), 0)
     },
     contentBox: cb
   };
@@ -238,7 +213,6 @@ function scoreOf(ruleResults, metrics, R) {
     if (r.status !== 'fail') continue;
     violationPenalty += r.weight * (mult[r.severity] ?? 0.5) * 4 * Math.log2(1 + r.count);
   }
-
   const ref = R.scoring.metricReference;
   const norm = {
     crossings: Math.min(metrics.perComponent.crossings / ref.crossings_perComponent, 1.5),
@@ -246,44 +220,42 @@ function scoreOf(ruleResults, metrics, R) {
     wireLength: Math.min(metrics.perComponent.wireLength / ref.wireLength_perComponent, 1.5),
     compactness: Math.max(0, 1 - metrics.compactness / ref.compactness_idealMin)
   };
-
   let metricPenalty = 0;
   for (const m of R.metrics) metricPenalty += m.weight * (norm[m.id] ?? 0) * 40;
-
   const score = Math.max(0, Math.min(100, 100 - violationPenalty - metricPenalty));
   const grade = score >= 90 ? 'A' : score >= 75 ? 'B' : score >= 60 ? 'C' : 'D';
   return { score, grade, violationPenalty, metricPenalty, normalized: norm };
 }
 
-// ---------- report ----------
-
 function renderText(rep, verbose) {
   const L = [];
   L.push(`原理图可读性报告  ${rep.source?.project || ''} ${rep.source?.page || ''}`.trim());
-  L.push(`skill v${rep.skillVersion} · 规则 v${rep.rulesVersion}`);
+  L.push(`skill v${rep.skillVersion} · 规则 v${rep.rulesVersion} · schema v${rep.schemaVersion}`);
   L.push('');
   L.push(`总分 ${fmt(rep.score.score)} / 100  (${rep.score.grade})${rep.score.calibrated ? '' : '  [权重未校准]'}`);
-  L.push(`元件 ${rep.metrics.counts.components} · 导线 ${rep.metrics.counts.wires} · 标签 ${rep.metrics.counts.labels}`);
+  L.push(`元件 ${rep.metrics.counts.components} · 引脚 ${rep.metrics.counts.pins} · 导线 ${rep.metrics.counts.wires}（${rep.metrics.counts.segments} 段）· 标签 ${rep.metrics.counts.labels}`);
   L.push('');
   const failed = rep.rules.filter(r => r.status === 'fail');
   const skipped = rep.rules.filter(r => r.status === 'skipped');
-  if (!failed.length) {
-    L.push('全部检查通过。');
-  } else {
+  if (!failed.length) L.push('全部检查通过。');
+  else {
     L.push(`问题（${failed.length} 项）`);
     for (const r of failed.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])) {
       L.push(`  [${r.severity}] ${r.id}  ×${r.count}  — ${r.desc}`);
-      if (verbose) for (const it of r.items.slice(0, 10)) L.push(`      · ${it.ref}: ${it.detail}`);
+      if (verbose) {
+        for (const it of r.items.slice(0, 12)) L.push(`      · ${it.ref}: ${it.detail}`);
+        if (r.items.length > 12) L.push(`      · …还有 ${r.items.length - 12} 条`);
+      }
     }
   }
   if (skipped.length) {
     L.push('');
-    L.push(`跳过（${skipped.length} 项，缺数据）`);
-    for (const r of skipped) L.push(`  ${r.id} — 需要 ${r.missing.join(', ')}`);
+    L.push(`跳过（${skipped.length} 项）`);
+    for (const r of skipped) L.push(`  ${r.id} — ${r.missing.join(', ')}`);
   }
   L.push('');
   L.push('指标');
-  L.push(`  交叉 ${rep.metrics.crossings} · 拐点 ${rep.metrics.bends} · 总线长 ${fmt(rep.metrics.wireLength, 0)} · 填充率 ${fmt(rep.metrics.compactness, 2)}`);
+  L.push(`  交叉 ${rep.metrics.crossings} · 拐点 ${rep.metrics.bends} · 分支点 ${rep.metrics.junctions} · 总线长 ${fmt(rep.metrics.wireLength, 0)} · 填充率 ${fmt(rep.metrics.compactness, 2)}`);
   if (rep.pageIssues?.length) {
     L.push('');
     L.push('数据质量');
@@ -294,16 +266,15 @@ function renderText(rep, verbose) {
 
 function renderMd(rep) {
   const L = [];
-  L.push(`## 原理图可读性报告`);
+  L.push('## 原理图可读性报告');
   L.push('');
   L.push(`**${fmt(rep.score.score)} / 100 (${rep.score.grade})**${rep.score.calibrated ? '' : ' · 权重未校准'}`);
   L.push('');
   L.push(`skill v${rep.skillVersion} · 规则 v${rep.rulesVersion} · 元件 ${rep.metrics.counts.components} · 导线 ${rep.metrics.counts.wires}`);
   L.push('');
   const failed = rep.rules.filter(r => r.status === 'fail');
-  if (!failed.length) {
-    L.push('全部检查通过。');
-  } else {
+  if (!failed.length) L.push('全部检查通过。');
+  else {
     L.push('| 级别 | 检查项 | 次数 | 说明 |');
     L.push('|---|---|---|---|');
     for (const r of failed.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])) {
@@ -311,64 +282,46 @@ function renderMd(rep) {
     }
   }
   L.push('');
-  L.push(`指标：交叉 ${rep.metrics.crossings} · 拐点 ${rep.metrics.bends} · 总线长 ${fmt(rep.metrics.wireLength, 0)} · 填充率 ${fmt(rep.metrics.compactness, 2)}`);
+  L.push(`指标：交叉 ${rep.metrics.crossings} · 拐点 ${rep.metrics.bends} · 分支点 ${rep.metrics.junctions} · 总线长 ${fmt(rep.metrics.wireLength, 0)}`);
   return L.join('\n');
 }
-
-// ---------- main ----------
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help || !args.file) {
-    console.log(`用法: sch-lint <page.json> [--json|--md] [-v] [--rules rules/lint-rules.json] [--constants rules/constants.json]
-
-  <page.json>   页面 dump（见 docs/schema.md）
-  --json        机器可读输出
-  --md          Markdown 输出（适合贴到对话/手机查看）
-  -v            展开每条问题的明细
+    console.log(`用法: sch-lint <page.json> [--json|--md] [-v] [--rules ...] [--constants ...]
 
 退出码: 0 通过 / 1 有 error 级问题 / 2 输入或内部错误`);
     process.exit(args.help ? 0 : 2);
   }
-
-  const rulesPath = args.rules ? resolve(args.rules) : join(ROOT, 'rules/lint-rules.json');
-  const constPath = args.constants ? resolve(args.constants) : join(ROOT, 'rules/constants.json');
   if (!existsSync(args.file)) {
     console.error(`找不到页面文件: ${args.file}`);
     process.exit(2);
   }
 
-  const R = readJson(rulesPath);
-  const C = readJson(constPath);
+  const R = readJson(args.rules ? resolve(args.rules) : join(ROOT, 'rules/lint-rules.json'));
+  const C = readJson(args.constants ? resolve(args.constants) : join(ROOT, 'rules/constants.json'));
   const { page, issues } = loadPage(args.file);
   const caps = capabilities(page);
 
   const ruleResults = R.rules.map(rule => {
     const missing = (rule.requires || []).filter(k => !caps[k]);
-    if (missing.length) {
-      return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing };
-    }
+    if (missing.length) return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing };
     const impl = RULE_IMPL[rule.id];
-    if (!impl) {
-      return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing: ['实现缺失'] };
-    }
-    let items = [];
+    if (!impl) return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing: ['实现缺失'] };
     try {
-      items = impl(page, C) || [];
+      const items = impl(page, C) || [];
+      return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: items.length ? 'fail' : 'pass', count: items.length, items };
     } catch (e) {
       return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing: [`执行异常: ${e.message}`] };
     }
-    return {
-      id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc,
-      status: items.length ? 'fail' : 'pass', count: items.length, items
-    };
   });
 
   const metrics = computeMetrics(page);
   const score = scoreOf(ruleResults, metrics, R);
 
   const rep = {
-    schemaVersion: '0.1.0',
+    schemaVersion: page.schemaVersion,
     skillVersion: C.version,
     rulesVersion: R.version,
     file: args.file,
@@ -380,16 +333,11 @@ function main() {
     score: { ...score, calibrated: false }
   };
 
-  if (args.format === 'json') {
-    console.log(JSON.stringify(rep, null, 2));
-  } else if (args.format === 'md') {
-    console.log(renderMd(rep));
-  } else {
-    console.log(renderText(rep, args.verbose));
-  }
+  if (args.format === 'json') console.log(JSON.stringify(rep, null, 2));
+  else if (args.format === 'md') console.log(renderMd(rep));
+  else console.log(renderText(rep, args.verbose));
 
-  const hasError = ruleResults.some(r => r.status === 'fail' && r.severity === 'error');
-  process.exit(hasError ? 1 : 0);
+  process.exit(ruleResults.some(r => r.status === 'fail' && r.severity === 'error') ? 1 : 0);
 }
 
 main();

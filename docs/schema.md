@@ -14,46 +14,63 @@
 
 ## 1. page.json — 页面 dump
 
+**schemaVersion 0.2.0**（0.1 → 0.2 的变化见 `references/design-notes.md` D14–D18，全部来自真实数据）
+
 ```jsonc
 {
-  "schemaVersion": "0.1.0",
+  "schemaVersion": "0.2.0",
   "unit": "0.01in",
-  "grid": 10,                      // 编辑器的栅格，lint 的 grid-off 用它
-  "source": { "platform": "easyeda", "project": "...", "page": "P1" },
+  "grid": 5,                       // 覆盖率推断所得；null 表示无法推断，lint 回落到 constants.grid
+  "gridCoverage": 0.983,
+  "source": { "platform": "easyeda-pro", "project": "...", "page": "P1", "pageUuid": "..." },
 
   "components": [{
-    "id": "u1",                    // 稳定唯一 ID，不用位号（位号会变）
-    "designator": "U1",
-    "x": 200, "y": 300,            // 元件原点，必须在栅格上
-    "rotation": 0,                 // 0/90/180/270
-    "mirror": false,
-    "bbox": { "x": 200, "y": 300, "w": 80, "h": 60 },   // 缺省时由引脚外接框推导
-    "pins": [
-      { "num": "1", "name": "IN", "x": 200, "y": 320 }
-    ]
-  }],
-
-  "wires": [{
-    "id": "w1",
-    "net": "VCC_5V",               // 可为 null
-    "points": [[120,320],[160,310]] // 折线，首尾必须落在引脚/标签/其它导线端点
+    "id": "fd4e8ff3dbb73e33",      // primitiveId，稳定唯一
+    "designator": "U3",
+    "x": 270, "y": 915,            // 元件原点，浮点已取整
+    "rotation": 0, "mirror": false,
+    "symbol": "CMS8S6990N-TSSOP20",
+    "footprint": "TSSOP-20_L6.5-W4.4-P0.65-LS6.4-BL",
+    "pins": [{
+      "num": "1", "name": "C0P5/C1P5",
+      "x": 120, "y": 960,
+      "len": 10,                   // pinLength
+      "rotation": 180,
+      "noConnected": false         // EDA 自己标的未连接标记，可作交叉验证
+    }]
   }],
 
   "labels": [{
-    "id": "l1", "text": "VCC_5V",
-    "x": 120, "y": 320,
-    "rotation": 0,
-    "align": "start"               // start | middle | end，决定 bbox 从锚点向哪边长
+    "id": "6dc8866d2b26d49a",
+    "kind": "netport",             // netflag | netport | netlabel
+    "text": "TM_SDA",
+    "x": 90, "y": 950,             // 图形锚点
+    "conn": { "x": 90, "y": 950 }, // 电连接点（符号引脚）；标签电气的就是这个点
+    "rotation": 0
   }],
 
-  "texts": [{ "id": "t1", "text": "LDO 3V3", "x": 200, "y": 270 }]
+  "wires": [{
+    "id": "26505adcaaaa2976",
+    "net": "N",
+    "segments": [[1045,305,1045,300],[1125,300,1045,300]]   // 每项一个独立线段，不是一个折线
+  }],
+
+  "texts": [{ "id": "3448fd6fdf5a3fbf", "text": "EMS", "x": 990, "y": 370, "rotation": 0, "alignMode": 3 }]
 }
 ```
 
-### 字段要求的实际影响
+### 三个必须知道的坑
 
-缺 `pins` → `dangling-wire` 精度下降（无法区分「接在引脚上」和「悬空」）。
-缺 `bbox` → 由引脚外接框推导，`overlap` 与 `wire-through-body` 会漏报。
+**坐标是浮点。** `915` 会返回成 `914.9999999999999`。dump 时必须 `Math.round(v*1000)/1000`，否则栅格推断退化成 1、结点索引全部错位。
+
+**`segments` 不是折线。** 一个 wire 图元常是从某个结点发散的星形，按四点一段读。拐点按「度为 2 且方向不共线的结点」算，分支点（度 ≥3）单独统计。
+
+**标签的电连接点不等于锚点。** `netflag` / `netport` 是组件，`(x, y)` 是图形位置，电气连接在它们的引脚上（`conn`）。用锚点匹配导线端点会产生大量假悬空。
+
+### 字段缺失的实际影响
+
+缺 `pins` → `dangling-wire` 精度下降。
+缺 `bbox` → 由引脚外接框 + 10 padding 推导，`overlap` 与 `wire-through-body` 会误报（真实符号轮廓 API 不提供，D8）。
 缺 `labels` → `label-overlap` 整条规则被跳过。
 
 lint 会把这些缺失作为 `pageIssues` 报出来，不会静默降级。
