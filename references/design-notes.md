@@ -309,3 +309,26 @@ D22 我判断"n=2 不该调"，是对的；但如果因此一直不调、等到 
 **代价**：reflow 只能改善已有页面，不能凭空生成。项目最初的目标是"让 AI 帮我画图"，现在要承认：AI 能帮你**整理**图，不能帮你**从零画**——除非用户自带一份带尺寸的符号表。
 
 **待验证**：reflow 需要能移动元件（`setState_X/Y` + `done()`）并重连导线。移动后必须用 `netlistComparison` 确认电气未变——这条已写在 D11。
+
+### D24 附：穷举结果（2026-11-17 第二轮）
+
+把能找到的路径全试了一遍：
+
+| 路径 | 结果 |
+|---|---|
+| `lib_Symbol.get()` | `undefined`（项目内符号 `libraryUuid` 为空） |
+| `ILIB_SymbolItem` 字段 | 9 个：uuid / name / type / libraryType / libraryUuid / classification / description / subPartNames / cbbUuid |
+| `ILIB_DeviceItem` 字段 | 8 个：uuid / name / association / classification / description / libraryType / libraryUuid / property / subPartNames |
+| `lib_Symbol.getRenderImage()` | `undefined` |
+| `sys_FileManager.getProjectsPaths()` | 报错：**非全离线客户端环境无法调用** |
+| `sys_FileSystem.listFilesOfFileSystem()` | 报错：**非客户端环境无法调用**（没有磁盘访问） |
+| `sys_FileManager.getDocumentSource()` | **可用**，355K 字符，但 `docType` 是 `SCH_PAGE`——返回的是当前页面源 |
+| 页面源里的 `COMPONENT` 记录 | 只有 `x / y / rotation / isMirror` + `DeviceName`（内含 device uuid），`source` 字段为空串 |
+| `lib_Symbol.openInEditor()` | 抛错（`Error: [object Object]`），符号编辑器打不开，所以拿不到 SYMBOL 源 |
+| 技能市场搜索（EasyEDA / 立创EDA） | 无匹配 skill |
+
+**结论：所有文档化接口里没有任何一条能拿到符号本体轮廓。** 两个条目接口（Symbol / Device）加起来 17 个字段，一个几何字段都没有。
+
+**可用的最好近似**：引脚云按各自 `pinLength` 向内收。两脚阻容精确（与 D18 实测一致），异形符号只是近似，且**无法验证**——因为现在所有被测页面的 overlap 都是 0，改了看不出差别。按"不能验证就不改"的原则，暂时保持现状（pin 云 = bbox，见 D19）。
+
+**影响不变**：仍在 D24 的结论里——从零生成不可行，只能 reflow。
