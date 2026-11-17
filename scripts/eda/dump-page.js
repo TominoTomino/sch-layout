@@ -56,6 +56,9 @@ for (const id of partIds) {
     rotation: c.rotation || 0,
     mirror: !!c.mirror,
     symbol: (c.symbol && c.symbol.name) || '',
+    symbolUuid: (c.symbol && c.symbol.uuid) || '',
+    deviceUuid: (c.component && c.component.uuid) || '',
+    subPart: c.subPartName || '',
     footprint: (c.footprint && c.footprint.name) || '',
     net: c.net || '',
     pins: pins.map(function (p) {

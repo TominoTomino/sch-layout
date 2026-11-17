@@ -10,6 +10,7 @@ import {
   loadPage, wireSegments, buildNodeIndex, wireCorners,
   capabilities, contentBBox, labelBBox, labelAnchor, pointKey
 } from './lib/page.mjs';
+import { bboxToPage } from './epro.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -17,7 +18,7 @@ const ROOT = resolve(HERE, '..');
 const SEVERITY_RANK = { error: 0, warn: 1, info: 2 };
 
 function parseArgs(argv) {
-  const args = { file: null, format: 'text', verbose: false, rules: null, constants: null };
+  const args = { file: null, format: 'text', verbose: false, rules: null, constants: null, symbols: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--json') args.format = 'json';
@@ -25,6 +26,7 @@ function parseArgs(argv) {
     else if (a === '--verbose' || a === '-v') args.verbose = true;
     else if (a === '--rules') args.rules = argv[++i];
     else if (a === '--constants') args.constants = argv[++i];
+    else if (a === '--symbols') args.symbols = argv[++i];
     else if (a === '--help' || a === '-h') args.help = true;
     else if (!a.startsWith('-')) args.file = a;
   }
@@ -289,7 +291,7 @@ function renderText(rep, verbose) {
   // approximations, so a zero there does not mean "verified clean" (D24).
   const approx = rep.rules.filter(r => (r.geometry || 'exact') === 'approx');
   const approxPassed = approx.filter(r => r.status === 'pass');
-  if (approxPassed.length) {
+  if (approxPassed.length && rep.bboxSource === 'pin-cloud') {
     L.push('');
     L.push('本报告看不见什么');
     L.push(`  ${approxPassed.map(r => r.id).join(' / ')} 报 0，是"用引脚云近似没查到"，不是"确认没问题"。`);
@@ -343,6 +345,21 @@ function main() {
   const { page, issues } = loadPage(args.file);
   const caps = capabilities(page);
 
+  // Real symbol outlines, if the project was exported to .epro and parsed (D26).
+  let bboxSource = 'pin-cloud';
+  if (args.symbols) {
+    const { symbols } = readJson(resolve(args.symbols));
+    let real = 0, missing = 0;
+    for (const c of page.components) {
+      const s = symbols[c.symbolUuid];
+      const box = s ? bboxToPage(s.bbox, c) : null;
+      if (box && box.w > 0 && box.h > 0) { c.bbox = box; c.bboxReal = true; real++; }
+      else missing++;
+    }
+    bboxSource = missing ? `epro (${real} 真 / ${missing} 回落引脚云)` : 'epro';
+    issues.push({ level: missing ? 'warn' : 'info', code: 'bbox-source', msg: `外形来源: ${bboxSource}` });
+  }
+
   const ruleResults = R.rules.map(rule => {
     const missing = (rule.requires || []).filter(k => !caps[k]);
     if (missing.length) return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing };
@@ -374,6 +391,7 @@ function main() {
     pageIssues: issues,
     rules: ruleResults,
     metrics,
+    bboxSource,
     score: { ...score, calibrated: false }
   };
 

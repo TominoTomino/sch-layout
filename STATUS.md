@@ -8,14 +8,15 @@
 
 | | |
 |---|---|
-| skill | 0.3.1 |
-| 规则 | 0.3.1 |
+| skill | 0.4.0 |
+| 规则 | 0.3.2 |
 | schema | 0.2.0 |
-| 常量 | 0.3.1 |
+| 常量 | 0.4.0 |
 
 ## 已完成
 
-- `lint.mjs` — 报告末尾自陈盲区（D25）；规则标注 geometry 依赖；8 条规则 + 指标（交叉/拐点/分支点/总线长/填充率），缺数据标 skipped
+- `lint.mjs` — 报告末尾自陈盲区（D25）；规则标注 geometry 依赖；8 条规则
+- **`epro.mjs` — 从导出的 .epro 解出真实符号外形（D26）**，`lint --symbols` 接上后 overlap 不再是瞎子 + 指标（交叉/拐点/分支点/总线长/填充率），缺数据标 skipped
 - `measure.mjs` — 栅格覆盖率 / 间距双峰 / 短桩 / 净空；`--write` 递增 version 并写 provenance
 - `layout.mjs` — 连通性分层（排除电源网）、跨层用网络标签、L 型避障路由
 - **`dump.mjs` + `scripts/eda/dump-page.js`** — 从 EDA 直接取 `page.json`，自动扫 49620-49629
@@ -29,7 +30,7 @@
 
 ## 待办（按优先级）
 
-1. **决定路线：reflow 还是基线对比**（D24）——符号外形拿不到，"从零生成"不可行。先做哪个见下方「分岔」。
+1. **把 `--symbols` 接进全流程**：dump 时自动导出 .epro 并解析，省掉手工两步。然后重算 13 页与 4 个评分点，看真实外形是否改变结论。
 2. **adapter 落图** — `getAllPinsByPrimitiveId` → `sch_PrimitiveComponent.create` / `sch_PrimitiveWire` / `createNetFlag` / `createNetPort`
 3. **官方基线** — **复制一份工程**后跑 `sch_Document.autoLayout()`，与现有分数对比。绝不在原图上跑
 4. **snap 工具** — 把导线端点吸回栅格 + 网表比对 + 不合格回滚（ouya 有 27 处可作首个用例）

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0.1.0",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "note": "Rules are append-only. Adding a rule is the normal way this project improves; deleting one requires a written reason in references/design-notes.md.",
   "rules": [
     {
