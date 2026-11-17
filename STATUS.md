@@ -11,7 +11,7 @@
 | skill | 0.2.2 |
 | 规则 | 0.2.0 |
 | schema | 0.2.0 |
-| 常量 | 0.2.2 — **仍是 PLACEHOLDER，尚未从真实样板测出** |
+| 常量 | 0.2.2 — **仍是 PLACEHOLDER**（已有两张真实页，但未跑 measure 定值） |
 
 ## 已完成
 
@@ -23,22 +23,22 @@
 - **D18 已确认**：`(x,y)` 是引脚外端＝连接点，`rotation` 朝外，`len` 向内收。极简页 `samples/min-two-resistors.json`（91 分 A，零问题）作为金标准
 - 修掉 D19/D20 两处假阳性：包围盒去掉 padding（大图 overlap 9 → **0**）；零长线段不再计入拐点与结点
 - **D21 连通性改用网表**（`pins[].net`）：新增 `pin-unconnected`（error），`dangling-wire` 降为 info。大图 42 条悬空里 24 条是误报，真实未接引脚只有 **2 个**（DS1.3 / DS2.3）
-- 第一张真实页面：59 元件 / 236 段 / **42 分** D 级（存 `fixtures/private/`，未提交）
+- 两张真实页面：过欠压 59 元件 **49.1 (D)** · CW32 174 元件 **64.3 (C)**（存 `fixtures/private/`，未提交）
+- **首批人工评分已入库**（`fixtures/ratings.json`）：工具排序与人工一致，但刻度被压平（D22）
 
 ## 待办（按优先级）
 
-1. **看那两个真未接引脚**（`DS1.3` / `DS2.3`）——是漏接还是该标 NC。这是目前唯一确认的电气问题，比排版重要。
-2. **27 条 grid-off 复核**——真实缺陷还是 5 栅格判断偏严，拿几条坐标人工看一眼。
-2. **adapter 落图** — `getAllPinsByPrimitiveId` → `sch_PrimitiveComponent.create` / `sch_PrimitiveWire` / `createNetFlag` / `createNetPort`
-3. **官方基线** — 跑 `sch_Document.autoLayout()` 记分数，与 15.7 对比
-4. **替换 PLACEHOLDER 常量** — 用真实页跑 `measure --write`，看测出的间距是否合理
-5. **15 个 motif 模板** — 先做 `LDO_3V3` / `去耦阵列` / `无源晶振`
-6. **fixtures + ratings** — 攒 8 条人工评分后校准权重（15.7 分低于直觉，权重明显偏严）
+1. **再攒 2–4 张带评分的页面**（写进 `fixtures/ratings.json`）。n=2 只能验证排序，不能拟合刻度；够 4–6 张再做权重拟合。
+2. **处理两个死指标**（D22）——`wireLength` 与 `compactness` 在所有真实页面上都撞封顶，合计恒定扣 18 分。这不是校准问题，是结构缺陷。
+3. **adapter 落图** — `getAllPinsByPrimitiveId` → `sch_PrimitiveComponent.create` / `sch_PrimitiveWire` / `createNetFlag` / `createNetPort`
+4. **官方基线** — **复制一份工程**后跑 `sch_Document.autoLayout()`，与 49.1 / 64.3 对比。绝不在原图上跑
+5. **27 条 grid-off 吸附** — 已定位全是导线端点，写成 snap + 网表比对 + 不合格回滚
+6. **15 个 motif 模板** — 先做 `LDO_3V3` / `去耦阵列` / `无源晶振`
 
 ## 阻塞
 
-- 待办 1 需要一张极简页面做对照：「两个电阻串联」即可，一分钟的事。
-- 待办 6 需要人工评分，只能由用户给。
+- 待办 1 需要用户对每张新页面给一个 band 评分（「能不能不经口述交给同事」）。
+- 待办 2 需要待办 1 的样本量，否则调参就是拟合噪声。
 
 ## 已知坑
 
@@ -59,4 +59,4 @@
 
 ## 最近一次改动
 
-2026-11-17 用网表裁定连通性（D21），几何悬空降级为 info。真实未接引脚 2 个。下一步看那 2 个引脚与 27 条 off-grid。
+2026-11-17 收了第二张真实页与首批人工评分（D22）：排序正确，刻度被压平，两个死指标合计恒定扣 18 分。下一步是攒够样本再拟合。

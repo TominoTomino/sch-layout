@@ -1,0 +1,24 @@
+[
+  {
+    "page": "fixtures/private/ouya-2026-11/page.json",
+    "label": "过欠压保护器 P1",
+    "components": 59,
+    "band": "lt60",
+    "humanApprox": 50,
+    "humanComment": "要重排",
+    "toolScore": 49.1,
+    "toolVersion": "0.2.2",
+    "note": "band 为中点近似，不是精确分。原话：60 以下要重排。"
+  },
+  {
+    "page": "fixtures/private/cw32-hub/page.json",
+    "label": "基于CW32的COM端口号可视化集线器 P1",
+    "components": 174,
+    "band": "gte90",
+    "humanApprox": 92,
+    "humanComment": "不用解释，同事看一遍就懂",
+    "toolScore": 64.3,
+    "toolVersion": "0.2.2",
+    "note": "band 为中点近似。原话：90+ 直接能交。"
+  }
+]
