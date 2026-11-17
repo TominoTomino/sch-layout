@@ -72,8 +72,11 @@ for (const id of partIds) {
       return null;
     };
     attrs = raw
+      // Only the two that are actually drawn as part text. `Value` carries the
+      // same string as Name here but often has an unplaced (null) anchor, and it
+      // is Name that the sheet prints.
       .filter(function (a) {
-        return a.key === 'Designator' || a.key === 'Name' || a.key === 'Value';
+        return a.key === 'Designator' || a.key === 'Name';
       })
       .map(function (a) {
         const rawText = a.value == null ? '' : String(a.value);

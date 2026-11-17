@@ -250,6 +250,10 @@ export function textExtent(text, fontSize) {
 // never under-estimates where the glyphs actually fall.
 export function attrBBox(attr) {
   if (!attr || attr.visible === false) return null;
+  // An anchor of null means the property has never been placed. Treating it as
+  // 0 makes the merged footprint stretch from the sheet origin to the part, which
+  // is how a 21x17 capacitor once measured 1108x1087.
+  if (!Number.isFinite(attr.x) || !Number.isFinite(attr.y)) return null;
   // Prefer what the sheet actually prints: `={Value}` renders the part's value,
   // so measuring the template string itself would be measuring the wrong thing.
   const text = attr.rendered != null ? attr.rendered : attr.value;
