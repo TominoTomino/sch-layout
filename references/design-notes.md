@@ -776,3 +776,45 @@ R2.2  $1N1977 (副本)  vs  $1N1096 (原件)
 `$1N…` 是自动生成的匿名网络名，导入时重新编号。**引脚分组完全一致**（两侧都是 2 个引脚），拓扑没变。
 
 结论：**副本只能与自己前后对比，不能与原工程逐网络比对。** `rehearse.mjs` 就是这么做的（同一次运行内 before/after）。
+
+---
+
+## D38 — 属性字（位号 / 型号）可读可改，而且改它不动电气
+
+之前一直把"位号压在自己符号上"当成只能容忍的事（D28 里 C27/C29 就是这么豁免的）。查了接口，发现有一条专门的路：
+
+```js
+eda.sch_PrimitiveAttribute.getAll(parentPrimitiveId)   // 拿某个元件的全部属性字
+eda.sch_PrimitiveAttribute.modify(id, {
+  x, y, rotation, alignMode, fontSize,
+  key, value, keyVisible, valueVisible,
+  color, bold, italic, underLine, fillColor
+})
+```
+
+属性对象带 `x / y / rotation / key / value / keyVisible / valueVisible / fontSize / alignMode`，也就是**位置、朝向、字号、对齐、显隐都能改**。
+
+### 为什么这条特别重要
+
+前面所有写操作都在改**几何**：挪线会断网（D30）、改线段会留幽灵网（D31）、删了重建必失败（D35③）。而属性字是**纯文本，不参与电气连接**。
+
+所以这是第一类"改了不会把板子弄坏"的操作：
+
+| 操作 | 是否影响网表 | 风险 |
+|---|---|---|
+| 移动元件 | 会（导线不跟随） | 高 |
+| 改导线几何 | 会 | 高 |
+| **移动/隐藏属性字** | **不会** | **低** |
+
+### 能解决什么
+
+1. **位号压符号** → 直接挪开，不用再走豁免。D28 那两条豁免理论上可以撤掉。
+2. **型号字太长盖住邻居** → 改字号、改对齐，或者 `valueVisible = false` 只留位号。
+3. **位号散在元件外围、方向乱** → 统一 `alignMode` 与相对偏移。
+4. **`label-overlap` 的精度问题**：现在文字宽高是按字数估算的（近似），拿到真实 `fontSize` / `alignMode` 后可以算准，这条规则有希望从 `approx` 升级。
+
+### 待验证（EDA 当前未连接）
+
+`getAll` 的 `parentPrimitiveId` 传元件 `primitiveId` 是否直接可用、`key` 的取值（`Designator` / `Value` 之类）、以及 `modify` 之后是否需要 `save()`（D36 说需要）。
+
+探针已写好：`scripts/eda/probe-attributes.js`，连上 EDA 后一条命令出结果。
