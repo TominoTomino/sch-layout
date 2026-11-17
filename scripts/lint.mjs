@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  isOrthogonal, rectsOverlap, segmentCrossesRect,
+  isOrthogonal, rectsOverlap, rectIntersectionArea, rectArea, segmentCrossesRect,
   properCrossing, segmentLength, pointOnSegment, deflate
 } from './lib/geometry.mjs';
 import {
@@ -59,13 +59,21 @@ const RULE_IMPL = {
     return items;
   },
 
-  'overlap': (page) => {
+  'overlap': (page, C) => {
     const items = [];
     const cs = page.components.filter(c => c.bbox && (c.bbox.w || c.bbox.h));
     for (let i = 0; i < cs.length; i++) {
       for (let j = i + 1; j < cs.length; j++) {
-        if (rectsOverlap(cs[i].bbox, cs[j].bbox, 1)) {
-          items.push({ ref: `${cs[i].designator || cs[i].id} / ${cs[j].designator || cs[j].id}`, detail: '包围盒相交' });
+        if (!rectsOverlap(cs[i].bbox, cs[j].bbox, 1)) continue;
+        const inter = rectIntersectionArea(cs[i].bbox, cs[j].bbox);
+        const smaller = Math.min(rectArea(cs[i].bbox), rectArea(cs[j].bbox));
+        const ratio = smaller > 0 ? inter / smaller : 1;
+        const need = C.limits.minOverlapRatio ?? 0.35;
+        if (ratio >= need) {
+          items.push({
+            ref: `${cs[i].designator || cs[i].id} / ${cs[j].designator || cs[j].id}`,
+            detail: `重叠面积占较小者的 ${(ratio * 100).toFixed(0)}%（门槛 ${(need * 100).toFixed(0)}%）`
+          });
         }
       }
     }

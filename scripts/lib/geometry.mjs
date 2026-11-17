@@ -35,6 +35,17 @@ export function rectsOverlap(a, b, tol = 0) {
            a.y + a.h <= b.y + tol || b.y + b.h <= a.y + tol);
 }
 
+export function rectIntersectionArea(a, b) {
+  const x0 = Math.max(a.x, b.x), x1 = Math.min(a.x + a.w, b.x + b.w);
+  const y0 = Math.max(a.y, b.y), y1 = Math.min(a.y + a.h, b.y + b.h);
+  if (x1 <= x0 || y1 <= y0) return 0;
+  return (x1 - x0) * (y1 - y0);
+}
+
+export function rectArea(r) {
+  return Math.max(r.w, 0) * Math.max(r.h, 0);
+}
+
 export function rectContainsPoint(r, p) {
   return p[0] >= r.x - EPS && p[0] <= r.x + r.w + EPS &&
          p[1] >= r.y - EPS && p[1] <= r.y + r.h + EPS;

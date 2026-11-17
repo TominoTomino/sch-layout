@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0.2.0",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "unit": "0.01in",
   "grid": 10,
   "spacing": {
@@ -22,7 +22,8 @@
   "limits": {
     "maxComponentsPerPage": 20,
     "maxBlocksPerPage": 6,
-    "minComponentsPerBlock": 1
+    "minComponentsPerBlock": 1,
+    "minOverlapRatio": 0.35
   },
   "provenance": {
     "_note": "Every number must record where it came from. Written by measure.mjs, never hand-edited without updating this block.",

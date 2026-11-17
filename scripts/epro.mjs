@@ -121,4 +121,4 @@ function main() {
   }
 }
 
-if (process.argv[1] && process.argv[1].endsWith('epro.mjs')) main();
+if (basename(process.argv[1] || '') === 'epro.mjs') main();
