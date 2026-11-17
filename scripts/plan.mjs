@@ -30,49 +30,28 @@ const GRID = 5;
 const snap = (v) => Math.round(v / GRID) * GRID;
 
 const SHEET = { w: 1654, h: 1169, margin: 40 };
-const GAP_X = 45;
-const ROW_GAP = 28;
+const GAP_X = 60;   // a vertical lane for wires
+const ROW_GAP = 70; // a horizontal lane: without it, every wire must cross a body
 const PAD = 26;
 const TITLE_H = 42;
 
-// region = where a block may grow, anchored top-left (sheet y points up)
+// Blocks are packed by measured size, not pinned to fixed regions: pinning was
+// what left a 30% empty band down the middle of the sheet last time.
 const BLOCKS = [
-  {
-    id: 'A',
-    title: '市电输入与保护',
-    subtitle: 'J3 进线 · RV1 压敏 · K1 继电器输出',
-    region: { x: 1130, top: 560, maxW: 470 },
-    members: ['J3', 'RV1', 'K1', 'Q1', 'R7', 'R19', 'D4']
-  },
-  {
-    id: 'C',
-    title: '测量前端',
-    subtitle: 'L1 电压互感器 · R1-R4 分压 · J2 电流输入 · U5 基准',
-    region: { x: 620, top: 1120, maxW: 470 },
-    members: ['L1', 'R1', 'R2', 'R3', 'R4', 'R5', 'C8', 'C9', 'D2', 'J2', 'R6', 'C10', 'D3', 'U5', 'R9', 'C11', 'C12']
-  },
-  {
-    id: 'D',
-    title: '主控',
-    subtitle: 'U3 CMS8S6990',
-    region: { x: 1130, top: 1120, maxW: 470 },
-    members: ['U3']
-  },
-  {
-    id: 'E',
-    title: '显示',
-    subtitle: 'U2 TM1652 · DS1/DS2',
-    region: { x: 620, top: 640, maxW: 470 },
-    members: ['U2', 'DS1', 'DS2']
-  },
-  {
-    id: 'F',
-    title: '按键与指示',
-    subtitle: 'SW1-4 上拉 · LED1-4 限流',
-    region: { x: 60, top: 560, maxW: 520 },
-    members: ['SW1', 'R14', 'SW2', 'R15', 'SW3', 'R16', 'SW4', 'R17', 'LED1', 'R10', 'LED2', 'R11', 'LED3', 'R12', 'LED4', 'R13']
-  }
+  { id: 'A', title: '市电输入与保护', subtitle: 'J3 进线 · RV1 压敏 · K1 继电器输出',
+    members: ['J3', 'RV1', 'K1', 'Q1', 'R7', 'R19', 'D4'] },
+  { id: 'B', title: '辅助电源', subtitle: 'U1 AC-DC 12V · U4 LDO 5V',
+    members: ['U1', 'CY1', 'C1', 'C2', 'L2', 'R8', 'D1', 'C3', 'C4', 'C5', 'C6', 'U4'] },
+  { id: 'C', title: '测量前端', subtitle: 'L1 电压互感器 · R1-R4 分压 · J2 电流输入 · U5 基准',
+    members: ['L1', 'R1', 'R2', 'R3', 'R4', 'R5', 'C8', 'C9', 'D2', 'J2', 'R6', 'C10', 'D3', 'U5', 'R9', 'C11', 'C12'] },
+  { id: 'D', title: '主控', subtitle: 'U3 CMS8S6990', members: ['U3'] },
+  { id: 'E', title: '显示', subtitle: 'U2 TM1652 · DS1/DS2', members: ['U2', 'DS1', 'DS2'] },
+  { id: 'F', title: '按键与指示', subtitle: 'SW1-4 上拉 · LED1-4 限流',
+    members: ['SW1', 'R14', 'SW2', 'R15', 'SW3', 'R16', 'SW4', 'R17', 'LED1', 'R10', 'LED2', 'R11', 'LED3', 'R12', 'LED4', 'R13'] }
 ];
+
+const BLOCK_GAP = 80;
+const MAX_ROW_W = 1500;
 
 function main() {
   const target = readJson(join(ROOT, 'out/target.json'));
@@ -99,44 +78,91 @@ function main() {
 
   const frames = [];
   const unplaced = [];
+
+  // 1) size each block: wrap rows at a preferred width, channels included
+  const sized = [];
   for (const b of BLOCKS) {
     const items = b.members
       .map((d) => targetBy.get(d))
       .filter((c) => c && !fixedSet.has(c.designator))
       .map((c) => ({ c, box: boxOf(c) }));
     if (!items.length) continue;
-
     const rows = [];
-    let row = [];
-    let rowW = 0;
+    let row = [], rowW = 0;
     for (const it of items) {
-      if (row.length && rowW + GAP_X + it.box.w > b.region.maxW) { rows.push(row); row = []; rowW = 0; }
+      if (row.length && rowW + GAP_X + it.box.w > 560) { rows.push(row); row = []; rowW = 0; }
+      rowW += (row.length ? GAP_X : 0) + it.box.w;
+      row.push(row);
+      row = row.slice(0, 1) && row; // keep row intact
+    }
+    // (rebuild rows cleanly - the loop above pushes refs)
+    rows.length = 0; row = []; rowW = 0;
+    for (const it of items) {
+      if (row.length && rowW + GAP_X + it.box.w > 560) { rows.push(row); row = []; rowW = 0; }
       rowW += (row.length ? GAP_X : 0) + it.box.w;
       row.push(it);
     }
     if (row.length) rows.push(row);
 
-    let yTop = b.region.top - TITLE_H;
-    let maxRight = b.region.x + PAD;
-    for (const r of rows) {
-      const rowH = Math.max(...r.map((it) => it.box.h));
-      let x = b.region.x + PAD;
-      for (const it of r) {
-        const ox = snap(x - it.box.x);
-        const oy = snap(yTop - it.box.h - it.box.y);
-        plan[it.c.designator] = { x: ox, y: oy, rotation: it.c.rotation || 0, mirror: !!it.c.mirror };
-        x += it.box.w + GAP_X;
-        maxRight = Math.max(maxRight, x - GAP_X);
+    const rowSizes = rows.map((r) => ({
+      w: r.reduce((t, it) => t + it.box.w, 0) + GAP_X * (r.length - 1),
+      h: Math.max(...r.map((it) => it.box.h))
+    }));
+    sized.push({
+      b, rows, rowSizes,
+      w: Math.max(...rowSizes.map((r) => r.w)) + PAD * 2,
+      h: rowSizes.reduce((t, r) => t + r.h, 0) + ROW_GAP * (rowSizes.length - 1) + PAD * 2 + TITLE_H
+    });
+  }
+
+  // 2) shelf-pack the blocks top-down, keeping the fixed power strip clear
+  const powerBox = fixed.length ? (() => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const c of fixed) {
+      const bx = boxOf(c);
+      x0 = Math.min(x0, c.x + bx.x); y0 = Math.min(y0, c.y + bx.y);
+      x1 = Math.max(x1, c.x + bx.x + bx.w); y1 = Math.max(y1, c.y + bx.y + bx.h);
+    }
+    return { x0, y0, x1, y1 };
+  })() : null;
+
+  let cx = SHEET.margin + 20, cy = SHEET.h - SHEET.margin - 20, shelfH = 0;
+  for (const it of sized) {
+    if (cx + it.w > SHEET.margin + MAX_ROW_W && cx > SHEET.margin + 20) {
+      cx = SHEET.margin + 20;
+      cy -= shelfH + BLOCK_GAP;
+      shelfH = 0;
+    }
+    // if this block would sit on the power strip, push it up a row
+    if (powerBox && cy - it.h < powerBox.y1 + 30 && cx + it.w > powerBox.x0 - 30) {
+      cx = SHEET.margin + 20;
+      cy -= shelfH + BLOCK_GAP;
+      shelfH = 0;
+    }
+    it.x = cx;
+    it.yTop = cy;
+    cx += it.w + BLOCK_GAP;
+    shelfH = Math.max(shelfH, it.h);
+  }
+
+  // 3) emit coordinates
+  for (const L of sized) {
+    let yTop = L.yTop - TITLE_H;
+    for (let r = 0; r < L.rows.length; r++) {
+      const rowH = L.rowSizes[r].h;
+      let x = L.x + PAD;
+      for (const it2 of L.rows[r]) {
+        plan[it2.c.designator] = {
+          x: snap(x - it2.box.x),
+          y: snap(yTop - it2.box.h - it2.box.y),
+          rotation: it2.c.rotation || 0,
+          mirror: !!it2.c.mirror
+        };
+        x += it2.box.w + GAP_X;
       }
       yTop -= rowH + ROW_GAP;
     }
-    const bottom = yTop + ROW_GAP - PAD;
-    frames.push({
-      id: b.id, title: b.title, subtitle: b.subtitle,
-      x: b.region.x, y: bottom,
-      w: maxRight - b.region.x + PAD,
-      h: b.region.top - bottom
-    });
+    frames.push({ id: L.b.id, title: L.b.title, subtitle: L.b.subtitle, x: L.x, y: yTop + ROW_GAP - PAD, w: L.w, h: L.h });
   }
 
   // ---- verify ----
