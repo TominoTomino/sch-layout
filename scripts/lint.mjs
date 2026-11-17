@@ -70,6 +70,20 @@ const RULE_IMPL = {
     return items;
   },
 
+  'pin-unconnected': (page) => {
+    const items = [];
+    for (const c of page.components) {
+      for (const p of c.pins || []) {
+        if (p.noConnected) continue;
+        if (p.net === undefined || p.net === null) continue;
+        if (p.net === '') {
+          items.push({ ref: `${c.designator}.${p.num}`, detail: `引脚无网络归属（${p.name || '未命名'}）` });
+        }
+      }
+    }
+    return items;
+  },
+
   'dangling-wire': (page) => {
     const nodes = buildNodeIndex(page);
     const allSegs = wireSegments(page);

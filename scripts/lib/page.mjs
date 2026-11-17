@@ -72,8 +72,10 @@ export function validatePage(page) {
 }
 
 export function capabilities(page) {
+  const pins = page.components.flatMap(c => c.pins || []);
   return {
-    pins: page.components.some(c => c.pins && c.pins.length),
+    pins: pins.length > 0,
+    pinNet: pins.some(p => p.net !== undefined && p.net !== null),
     labels: page.labels.length > 0,
     components: page.components.length > 0,
     wires: page.wires.some(w => (w.segments || []).length)

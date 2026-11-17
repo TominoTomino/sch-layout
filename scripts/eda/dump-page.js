@@ -23,6 +23,25 @@ const out = {
   texts: []
 };
 
+const pinNet = new Map();
+try {
+  const rawNl = await eda.sch_Netlist.getNetlist('JLCEDA');
+  const j = JSON.parse(rawNl);
+  const comps = j.components || {};
+  for (const id of Object.keys(comps)) {
+    const props = comps[id].props || {};
+    const des = props['Designator'];
+    const pm = comps[id].pinInfoMap || {};
+    for (const k of Object.keys(pm)) {
+      const e = pm[k];
+      pinNet.set(des + '.' + String(e.number), e.net || '');
+    }
+  }
+} catch (e) {
+  out.connectivityError = String(e);
+}
+out.connectivitySource = pinNet.size ? 'netlist' : 'none';
+
 const partIds = (await eda.sch_PrimitiveComponent.getAllPrimitiveId('part')) || [];
 for (const id of partIds) {
   const arr = await eda.sch_PrimitiveComponent.get([id]);
@@ -47,6 +66,7 @@ for (const id of partIds) {
         y: rnd(p.y),
         len: p.pinLength || 0,
         rotation: p.rotation || 0,
+        net: pinNet.has(c.designator + '.' + String(p.pinNumber)) ? pinNet.get(c.designator + '.' + String(p.pinNumber)) : null,
         noConnected: !!p.noConnected
       };
     })
@@ -126,5 +146,15 @@ for (const g of cands) {
 }
 out.grid = best;
 out.gridCoverage = vals.length ? (vals.filter(function (v) { return v % best === 0; }).length / vals.length) : null;
+
+const allPins = out.components.reduce(function (s, c) { return s.concat(c.pins); }, []);
+out.connectivity = {
+  source: out.connectivitySource,
+  totalPins: allPins.length,
+  pinsWithoutNet: allPins.filter(function (p) { return p.net === ''; }).length,
+  pinsUnknown: allPins.filter(function (p) { return p.net === null; }).length
+};
+delete out.connectivitySource;
+delete out.connectivityError;
 
 return out;

@@ -1,37 +1,57 @@
 {
   "schemaVersion": "0.1.0",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "note": "Rules are append-only. Adding a rule is the normal way this project improves; deleting one requires a written reason in references/design-notes.md.",
   "rules": [
     {
       "id": "grid-off",
       "severity": "error",
-      "weight": 1.0,
-      "requires": ["components", "wires"],
+      "weight": 1,
+      "requires": [
+        "components",
+        "wires"
+      ],
       "desc": "坐标不在栅格上",
       "why": "不在同一栅格上的元件与导线，放大后就看出参差，是最廉价也最致命的可读性损失。"
     },
     {
       "id": "overlap",
       "severity": "error",
-      "weight": 1.0,
-      "requires": ["components"],
+      "weight": 1,
+      "requires": [
+        "components"
+      ],
       "desc": "元件包围盒相交",
       "why": "重叠直接导致无法辨认符号与文字。"
     },
     {
-      "id": "dangling-wire",
+      "id": "pin-unconnected",
       "severity": "error",
-      "weight": 1.0,
-      "requires": ["components", "wires"],
-      "desc": "导线端点悬空（未落在引脚或另一导线端点）",
-      "why": "看起来连上了实际没连，是最危险的错误，且天然损害可读性。"
+      "weight": 1,
+      "requires": [
+        "pinNet"
+      ],
+      "desc": "引脚没有网络归属（真正未连接）",
+      "why": "以 EDA 自己导出的网表为准。设计者主动标了 NC 的引脚不算。这是唯一可信的连通性判据。"
+    },
+    {
+      "id": "dangling-wire",
+      "severity": "info",
+      "weight": 0.15,
+      "requires": [
+        "components",
+        "wires"
+      ],
+      "desc": "导线端点几何上不接触任何引脚/标签/线段",
+      "why": "仅作排版参考。实测 42 条里 24 条附近存在同网络引脚，网表也判定已连接——引脚的可连接范围比 (x,y) 端点大，几何判断不可靠。真连通性见 pin-unconnected。"
     },
     {
       "id": "diagonal",
       "severity": "error",
       "weight": 0.9,
-      "requires": ["wires"],
+      "requires": [
+        "wires"
+      ],
       "desc": "存在斜线段",
       "why": "斜线破坏正交网格感，也让交叉判定变复杂。"
     },
@@ -39,7 +59,9 @@
       "id": "too-many-bends",
       "severity": "warn",
       "weight": 0.8,
-      "requires": ["wires"],
+      "requires": [
+        "wires"
+      ],
       "desc": "单条导线拐点超过上限",
       "why": "绕远路的导线会让读者失去追踪兴趣。"
     },
@@ -47,7 +69,10 @@
       "id": "wire-through-body",
       "severity": "warn",
       "weight": 0.7,
-      "requires": ["components", "wires"],
+      "requires": [
+        "components",
+        "wires"
+      ],
       "desc": "导线穿过元件本体",
       "why": "基于包围盒近似判定，边距已内缩，可能误报；但真命中时非常难看。"
     },
@@ -55,7 +80,9 @@
       "id": "density",
       "severity": "warn",
       "weight": 0.6,
-      "requires": ["components"],
+      "requires": [
+        "components"
+      ],
       "desc": "单页元件数超过上限",
       "why": "超过阈值后布局算法无法兼顾，人眼也无法一次看懂，应拆页。"
     },
@@ -63,7 +90,10 @@
       "id": "label-overlap",
       "severity": "warn",
       "weight": 0.5,
-      "requires": ["components", "labels"],
+      "requires": [
+        "components",
+        "labels"
+      ],
       "desc": "网络标签与元件或导线重叠",
       "why": "标签压线是自动生成原理图最常见的可读性杀手。"
     }
@@ -98,11 +128,15 @@
     "formula": "score = clamp(100 - violationPenalty - metricPenalty, 0, 100)",
     "violationPenalty": "sum(weight * severityMult * 4 * log2(1 + count))",
     "metricPenalty": "sum(weight * normalizedValue * 40)",
-    "severityMult": { "error": 1.0, "warn": 0.55, "info": 0.2 },
+    "severityMult": {
+      "error": 1,
+      "warn": 0.55,
+      "info": 0.2
+    },
     "metricReference": {
-      "crossings_perComponent": 2.0,
-      "bends_perComponent": 6.0,
-      "wireLength_perComponent": 60.0,
+      "crossings_perComponent": 2,
+      "bends_perComponent": 6,
+      "wireLength_perComponent": 60,
       "compactness_idealMin": 0.25
     },
     "calibration": "UNFIT. Weights are priors, not fitted values. Once 8+ pages carry a human rating in fixtures/ratings.json, refit by least squares and record the result in design-notes D7."

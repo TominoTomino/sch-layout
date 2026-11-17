@@ -34,11 +34,18 @@
     "pins": [{
       "num": "1", "name": "C0P5/C1P5",
       "x": 120, "y": 960,
-      "len": 10,                   // pinLength
-      "rotation": 180,
-      "noConnected": false         // EDA 自己标的未连接标记，可作交叉验证
+      "len": 10,                   // pinLength，从 (x,y) 往本体内收
+      "rotation": 180,             // 指向外侧
+      "net": "VBIAS",             // 来自网表 pinInfoMap；"" = 真的没接，null = 未知
+      "noConnected": false         // 设计者主动标的 NC 标记
     }]
   }],
+
+  "connectivity": {
+    "source": "netlist",           // netlist | none
+    "totalPins": 191,
+    "pinsWithoutNet": 2
+  },
 
   "labels": [{
     "id": "6dc8866d2b26d49a",
@@ -66,6 +73,8 @@
 **`segments` 不是折线。** 一个 wire 图元常是从某个结点发散的星形，按四点一段读。拐点按「度为 2 且方向不共线的结点」算，分支点（度 ≥3）单独统计。
 
 **标签的电连接点不等于锚点。** `netflag` / `netport` 是组件，`(x, y)` 是图形位置，电气连接在它们的引脚上（`conn`）。用锚点匹配导线端点会产生大量假悬空。
+
+**连通性只看 `pins[].net`，不要靠几何推。** 引脚的可连接范围比 `(x,y)` 端点大，几何判断实测有 57% 误报（见 D21）。`pins[].net === ""` 才是真没接；`null` 表示没拿到网表，此时 `pin-unconnected` 会被跳过。
 
 ### 字段缺失的实际影响
 
