@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0.2.0",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "unit": "0.01in",
   "grid": 10,
   "spacing": {
@@ -23,7 +23,9 @@
     "maxComponentsPerPage": 20,
     "maxBlocksPerPage": 6,
     "minComponentsPerBlock": 1,
-    "minOverlapRatio": 0.35
+    "minOverlapRatio": 0.35,
+    "gridTolerance": 0.1,
+    "_gridToleranceWhy": "真实数据里写入后会出现 ~0.05 单位的亚单位漂移（半 mil），属数值噪声；判 off-grid 必须带容差，否则 5 栅格页会被判成 1 栅格页（D33/D34）"
   },
   "provenance": {
     "_note": "Every number must record where it came from. Written by measure.mjs, never hand-edited without updating this block.",

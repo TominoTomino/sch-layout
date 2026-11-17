@@ -116,8 +116,14 @@ const RULE_IMPL = {
 
   'grid-off': (page, C) => {
     const g = page.grid || C.grid;
+    const tol = C.limits?.gridTolerance ?? 0.1;
     const items = [];
-    const bad = (v) => Math.abs(v % g) > 1e-6;
+    // Tolerance is not sloppiness: writes leave sub-unit drift (~0.05 units) that
+    // is numerical noise, not a drawing mistake. Real off-grid errors are >= 1 unit.
+    const bad = (v) => {
+      const r = ((v % g) + g) % g;
+      return Math.min(r, g - r) > tol;
+    };
     for (const c of page.components) {
       if (bad(c.x) || bad(c.y)) items.push({ ref: c.designator || c.id, detail: `元件原点 (${c.x}, ${c.y}) 不在 ${g} 栅格` });
       for (const p of c.pins || []) {
@@ -414,6 +420,17 @@ function runOne(file, args, R, C, symbols, tally) {
   const ruleResults = R.rules.map(rule => {
     const missing = (rule.requires || []).filter(k => !caps[k]);
     if (missing.length) return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing };
+
+    // A grid of 1 makes this rule vacuous - every integer is a multiple of 1, so
+    // it would report "clean" no matter how ragged the drawing is. Grid inference
+    // is a page-level heuristic and does collapse to 1 after heavy edits (D33),
+    // so refuse to run rather than pass silently.
+    if (rule.id === 'grid-off') {
+      const g = page.grid || C.grid;
+      if (!g || g <= 1) {
+        return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing: ['栅格推断退化为 1，本规则无意义；用 --grid 指定后重跑'] };
+      }
+    }
     const impl = RULE_IMPL[rule.id];
     if (!impl) return { id: rule.id, severity: rule.severity, weight: rule.weight, desc: rule.desc, status: 'skipped', count: 0, items: [], missing: ['实现缺失'] };
     try {

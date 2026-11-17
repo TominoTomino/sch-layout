@@ -8,64 +8,48 @@
 
 | | |
 |---|---|
-| skill | 0.4.0 |
-| 规则 | 0.3.2 |
+| skill | 0.5.0 |
+| 规则 | 0.4.3 |
 | schema | 0.2.0 |
-| 常量 | 0.4.0 |
+| 常量 | 0.5.0 |
 
 ## 已完成
 
-- `lint.mjs` — 报告末尾自陈盲区（D25）；规则标注 geometry 依赖；8 条规则
-- **`epro.mjs` — 从导出的 .epro 解出真实符号外形（D26）**，`lint --symbols` 接上后 overlap 不再是瞎子 + 指标（交叉/拐点/分支点/总线长/填充率），缺数据标 skipped
-- `measure.mjs` — 栅格覆盖率 / 间距双峰 / 短桩 / 净空；`--write` 递增 version 并写 provenance
-- `layout.mjs` — 连通性分层（排除电源网）、跨层用网络标签、L 型避障路由
-- **`dump.mjs` + `scripts/eda/dump-page.js`** — 从 EDA 直接取 `page.json`，自动扫 49620-49629
-- schema 0.2 — 段式导线、标签连接点、浮点取整、覆盖率栅格（D14–D17）
-- **D18 已确认**：`(x,y)` 是引脚外端＝连接点，`rotation` 朝外，`len` 向内收。极简页 `samples/min-two-resistors.json`（91 分 A，零问题）作为金标准
-- 修掉 D19/D20 两处假阳性：包围盒去掉 padding（大图 overlap 9 → **0**）；零长线段不再计入拐点与结点
-- **D21 连通性改用网表**（`pins[].net`）：新增 `pin-unconnected`（error），`dangling-wire` 降为 info。大图 42 条悬空里 24 条是误报，真实未接引脚只有 **2 个**（DS1.3 / DS2.3）
-- 两张真实页面：过欠压 59 元件 **49.1→66.1** · CW32 174 元件 **64.3→88.9**（存 `fixtures/private/`）
-- Yosemite 工程 13 页全量扫描：95.5–99.3（一页连接器细节页 58.8 为异常样本，已排除）
-- **4 个人工评分点**（`fixtures/ratings.json`）：D23 据此把指标退出计分、缺陷改线性扣分
+- `lint.mjs` — 9 条规则；报告末尾自陈盲区（D25）；每条规则标注 `geometry: exact | approx`
+- **`epro.mjs` / `export-epro.mjs`** — 导出工程包 → 解出真实符号 BBOX（76/76），`lint --symbols` 用真外框（D26）
+- **`dump.mjs`** — 一页取全：元件/引脚/导线/标签/网表归属/栅格推断，自动扫 49620-49629
+- **`apply.mjs`** — 写 EDA：`snap-grid` / `point`，逐引脚网表校验 + 自动回滚 + 元件清单不变式（D30–D34）
+- 计分：指标退出计分、缺陷线性扣分（D23）。4 个人工评分点支撑
+- 重叠：真外框 + 显著性门槛 + 同型号比例众数 + 显式豁免（D27/D28）
+- Yosemite 13 页：95.2–99.3，0 error
 
 ## 待办（按优先级）
 
-1. **把 `--symbols` 接进全流程**：dump 时自动导出 .epro 并解析，省掉手工两步。然后重算 13 页与 4 个评分点，看真实外形是否改变结论。
-2. **adapter 落图** — `getAllPinsByPrimitiveId` → `sch_PrimitiveComponent.create` / `sch_PrimitiveWire` / `createNetFlag` / `createNetPort`
-3. **官方基线** — **复制一份工程**后跑 `sch_Document.autoLayout()`，与现有分数对比。绝不在原图上跑
-4. **snap 工具** — 把导线端点吸回栅格 + 网表比对 + 不合格回滚（ouya 有 27 处可作首个用例）
-5. **15 个 motif 模板** — 先做 `LDO_3V3` / `去耦阵列` / `无源晶振`
-6. **清理 density 规则** — 用户工作流里单页 174 元件属正常，`maxComponentsPerPage=20` 是错的
-
-## 分岔（待用户决定）
-
-- **A. 先做官方基线**：复制一个工程 → 跑 `autoLayout` → 打分。成本低，回答"内置的到底够不够好"。如果够好，reflow 的价值就下降了。
-- **B. 直接做 reflow**：在已有页面上重排元件 + 网表校验。工作量大，但是唯一能让工具"动手"的路。
-
-建议 A 先做，因为它可能让 B 的价值归零。
+1. **在副本上彩排 ouya 的 27 处 snap**：`apply --dry-run` → 副本执行 → 对比 lint → 再定是否动原工程。这是写层第一次上真实数据。
+2. **把 `export-epro` 串进 `dump`**：现在要手工两步。
+3. **reflow 原语**：`move component + rebuild attached wires` 的组合。D30 已证明单独 move 会断网，必须成对。
+4. **修 `density` 规则**：单页 174 元件是用户的正常工况，`maxComponentsPerPage=20` 是错的。
+5. **15 个 motif 模板**：`LDO_3V3` / `去耦阵列` / `无源晶振` 三个起步。
 
 ## 阻塞
 
-- 待办 1 需要用户对每张新页面给一个 band 评分（「能不能不经口述交给同事」）。
-- 待办 2 需要待办 1 的样本量，否则调参就是拟合噪声。
+- 待办 1 需要在真实工程上写入，需用户明确同意；副本彩排结果先给用户看。
+- `SCHLAYOUT-BASELINE` 是一个脏掉的一次性副本（测试用），**应手动删除**。API 没有删工程接口。
 
 ## 已知坑
 
-- `line` 是**段列表**不是折线；`netflag`/`netport` 是**组件**不是文本，电连接点在它们的引脚上（D14/D15）
-- **连通性以 `pins[].net` 为准，几何悬空不可信**（实测 57% 误报，D21）
-- 引脚 `(x,y)` 是**外端连接点**，`len` 向本体内收，别加 `+len·dir`（D18）
-- 电源标识直接贴引脚时用**零长线段**表示，必须忽略（D18）
-- 包围盒**不加 padding**，引脚框就是外轮廓（D19）
-- `compactness` 实测 0.04，参考值 0.25 不适用，只能看趋势不能横向比（D20）
-- 坐标是浮点，`915` 可能是 `914.9999999999999`，不取整则一切皆错（D16）
-- 栅格别用严格 gcd，用覆盖率 ≥95% 的最大候选（D17）
-- `sch_Document.autoLayout()` 是黑盒，只吃 uuids/netlist/deviceTypeMap（D10）
-- 原理图没有 DRC（D13）
-- 沙箱代理只放通 `api.github.com`，不放通 `github.com`。git 需 `env -u https_proxy -u HTTPS_PROXY -u http_proxy -u HTTP_PROXY` + `-c http.version=HTTP/1.1` + **重试 3–5 次**
-- WorkBuddy 的 GitHub MCP connector 只读，推代码走 git CLI
+- `autoLayout()` / `autoRouting()` 实测无任何行为，别再花时间（D29）
+- **移动元件不带动导线**，一移就断；导线不能原地改几何，必须删了重建（D30/D31）
+- `create()` 紧跟 `delete()` 必失败，回滚也会跟着失败（D32）
+- 写入留下 ~0.05 单位漂移，栅格判定必须带 0.1 容差；否则 grid 退化成 1，`grid-off` 静默变永真（D33）
+- 删元件时网表比对看不出来（引脚一起消失），必须另查元件清单（D34）
+- 连通性以 `pins[].net` 为准，几何悬空 57% 是误报（D21）
+- 引脚 `(x,y)` 是外端连接点，`len` 向内收；电源标识贴引脚时用零长线段（D18）
+- 包围盒不加 padding（D19）；`line` 是段列表；`netflag/netport` 是组件不是文本（D14/D15）
+- 坐标是浮点，不取整一切皆错（D16）
+- 沙箱代理只放通 `api.github.com`；git 需绕代理 + `http.version=HTTP/1.1` + 重试 3–5 次
 - 本环境 `cmd` 被禁，建 junction 用 `New-Item -ItemType Junction`
-- `wire-through-body` / `overlap` 用包围盒近似，会误报，级别是 warn（D8）
 
 ## 最近一次改动
 
-2026-11-17 D24：查清符号外形不可得（lib_Symbol 无 bbox、项目内符号 libraryUuid 为空），"从零生成"路线作废，改为 reflow。
+2026-11-17 写层上线（apply）：snap-grid 实测通过两轮，回滚与清单不变式已加拦截。autoLayout 判定不可用，自研路线定案。

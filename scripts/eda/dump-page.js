@@ -142,13 +142,18 @@ for (const l of out.labels) { feed(l.x); feed(l.y); if (l.conn) { feed(l.conn.x)
 for (const w of out.wires) for (const s of w.segments) for (const v of s) feed(v);
 
 const cands = [100, 50, 25, 20, 10, 5, 2, 1];
+const TOL = 0.1; // sub-unit drift after writes is noise, not a drawing error (D34)
+function onGrid(v, g) {
+  const r = ((v % g) + g) % g;
+  return Math.min(r, g - r) <= TOL;
+}
 let best = null;
 for (const g of cands) {
-  const ok = vals.filter(function (v) { return v % g === 0; }).length;
+  const ok = vals.filter(function (v) { return onGrid(v, g); }).length;
   if (vals.length && ok / vals.length >= 0.95) { best = g; break; }
 }
 out.grid = best;
-out.gridCoverage = vals.length ? (vals.filter(function (v) { return v % best === 0; }).length / vals.length) : null;
+out.gridCoverage = vals.length ? (vals.filter(function (v) { return onGrid(v, best); }).length / vals.length) : null;
 
 const allPins = out.components.reduce(function (s, c) { return s.concat(c.pins); }, []);
 out.connectivity = {

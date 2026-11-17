@@ -13,16 +13,19 @@ description: 原理图布局与可读性检查（嘉立创EDA专业版 / EasyEDA
 1. 读 `rules/constants.json` 的 `version`。若 `provenance.*.source === "PLACEHOLDER"`，说明常量还没从真实样板测出来，**先跑 measure，不要直接布局**。
 2. 目录不存在 `rules/` 或 `scripts/` → 环境不完整，让用户执行仓库里的 `install.sh` / `install.ps1`。
 
-## 三个命令
+## 命令
 
 ```bash
-node scripts/measure.mjs <page.json> [--write]     # 从样板测常量
-node scripts/lint.mjs    <page.json> [--md|-v]     # 可读性检查，exit 1 = 有 error
+node scripts/dump.mjs    --out page.json [--page <docUuid>]   # 从 EDA 取当前页
+node scripts/export-epro.mjs --out symbols.json               # 导出工程包并解出真实符号外形
+node scripts/lint.mjs    <page.json> [--symbols symbols.json] [--md|-v]
+node scripts/apply.mjs   <page.json> --op snap-grid [--commit] # 写入 EDA（默认预演）
+node scripts/measure.mjs <page.json> [--write]                 # 从样板测常量
 node scripts/layout.mjs  <design.json> [--out plan.json] [--emit-page page.json]
 ```
 
-`measure` 和 `lint` 吃同一个东西：**页面 dump**（格式见 `docs/schema.md`）。
-`layout` 吃的是**抽象盒模型**（只有引脚分布与连通性，不含真实符号几何）。
+`dump` / `lint` / `apply` / `measure` 吃同一个东西：**页面 dump**（见 `docs/schema.md`）。
+`layout` 吃的是**抽象盒模型**，目前还不能落图（见下节）。
 
 ## 标准流程
 
@@ -43,26 +46,43 @@ node scripts/layout.mjs  <design.json> [--out plan.json] [--emit-page page.json]
 
 一律用**网络标签 + 短桩**，不用跨块长导线。这是可读性收益最大的一条，`layout.mjs` 已内置（`isGlobalNet` 全用标签，跨 2 层以上用标签）。
 
-## adapter（尚未实现）
+## 写 EDA（adapter 的第一层，已可用）
 
-本仓库只产出坐标，不直接写 EDA。真实落图需要一层 adapter，官方 API 已经把原语给全了：
+`scripts/apply.mjs` 可以真的改页面。它只做一件事：把一批坐标改动写进去，**然后逐引脚比对网表，不一致就整批回滚**。
 
-1. `sch_PrimitiveComponent.getAllPrimitiveId()` 拿元件，`getAllPinsByPrimitiveId(id)` 拿**真实引脚坐标**——不要自己按外框推算
-2. 用 plan 的 `component.x/y` 作锚点，把抽象外框映射到真实符号几何
-3. `sch_PrimitiveComponent.create(component, x, y, ...)` 放器件，`sch_PrimitiveWire.create` 画块内短线
-4. **跨块连接改用 `createNetFlag('Power'|'Ground'|'AnalogGround'|'ProtectGround')` 与 `createNetPort('IN'|'OUT'|'BI')`**，不要用 wire + 文本标签（design-notes D12）
-5. 落图后跑 `sys_Tool.netlistComparison(源网表, sch_ManufactureData.getNetlistFile())` 做往返校验，差异必须为空（design-notes D11）
-6. 再 `measure` 一次，比对实际间距与 plan 的偏差
+目前支持两个操作：`snap-grid`（把脱离栅格的点吸回栅格）、`point --from x,y --to x,y`（单点，用于测试与定点修正）。
 
-在 adapter 存在之前，**不要把 plan 坐标直接写进 EDA**，外框模型和真实符号几何不一致。
+### 写之前必须知道的四条（都是实测得来）
 
-## 官方 autoLayout 是基线，不是对手
+| 事实 | 后果 |
+|---|---|
+| 移动元件**不会**带动导线，60 个引脚会瞬间失去网络（D30） | 任何位移都要连带重建挂在它上面的导线 |
+| `SCH_PrimitiveWire.modify({line})` 会触发编辑器重新切分合并，可能留下幽灵网络（D31） | 导线**不原地改**，一律 `delete` + `create(段列表, net)` |
+| `create()` 紧跟 `delete()` 会失败，回滚也会因此失败（D32） | 删除后必须 `wait(500)`，create 带重试 |
+| 写入会留下 ~0.05 单位漂移（D33） | 栅格判定带 0.1 容差；别把漂移当缺陷 |
 
-`sch_Document.autoLayout()`（Beta）确实存在，但只接受 `uuids` / `netlist` / `designatorDeviceTypeMap` 三个参数——**没有任何间距、分区、朝向的入口**（design-notes D10）。
+### 作业规程
 
-所以：**先跑它一遍，记录分数当基线。** 自研布局必须跑赢这个基线，跑不赢就说明方向错了。
+1. **先在副本上彩排**。`importProjectByProjectFile` 能自动生成副本（约 2 分钟，D29 有代码）。写操作只在确认副本无损后才动原工程。
+2. **预演看计划**（不加 `--commit`），确认每一条 `from → to` 合理。
+3. **提交后必须重跑 lint**，对比改前改后。
+4. 报告里出现"已回滚"或"页面已受损" → 停下来人工检查，不要继续下一次写入。
 
-原理图侧没有任何 DRC（`SCH_Document` 只有 autoLayout / autoRouting / importChanges / save），`lint` 是补空白，不是重复造轮子（design-notes D13）。
+### 还不能做的
+
+- **元件级重排**（reflow）：需要"移动 + 重建周边导线"的组合原语，尚未实现。目前只有点级操作。
+- **从零生成**：`layout.mjs` 的产物落图还没有 adapter。现在有真实符号外形了（D26），这条路重新可行，但没做。
+
+## 官方 autoLayout 不可用（实测）
+
+`sch_Document.autoLayout()` 与 `autoRouting()` 都是 Beta。实测（两种页面 × 三种参数组合）：
+
+- `autoLayout()` 返回 `{}`，**元件零位移**；`uuids` 用 `primitiveId` 或 `uniqueId` 都一样
+- `autoRouting()` 45 秒不 resolve，导线逐段未变
+
+所以**不要把它当基线，也不要等它**（D29）。自研不是重复劳动，是唯一可走的路。
+
+原理图侧没有任何 DRC（`SCH_Document` 只有四个方法），`lint` 是补空白（D13）。
 
 ## 改造本 skill 的流程
 
