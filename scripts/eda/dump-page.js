@@ -55,14 +55,34 @@ for (const id of partIds) {
   let attrs = [];
   try {
     const raw = (await eda.sch_PrimitiveAttribute.getAll(id)) || [];
+    // `={Value}` and `={Manufacturer Part}` are templates, not text. Width is
+    // judged downstream, so resolve them here where the part data is at hand:
+    // Value is the short, schematic-appropriate string; the symbol name is the
+    // part number; the LCSC name is the long, human-readable one (D47).
+    const op = c.otherProperty || {};
+    // Symbol names often carry the LCSC catalogue number (1N4148W_C2892570).
+    // That suffix is procurement data, not a part designation, and it is what
+    // pushes the name so wide that the font has to shrink below legibility.
+    const stripCatalogue = function (t) {
+      return String(t || '').replace(/_C\d+$/, '').trim();
+    };
+    const resolve = function (tpl) {
+      if (tpl === '={Value}') return op['Value'] || stripCatalogue(c.symbol && c.symbol.name);
+      if (tpl === '={Manufacturer Part}') return stripCatalogue(c.symbol && c.symbol.name) || op['LCSC Part Name'] || '';
+      return null;
+    };
     attrs = raw
       .filter(function (a) {
         return a.key === 'Designator' || a.key === 'Name' || a.key === 'Value';
       })
       .map(function (a) {
+        const rawText = a.value == null ? '' : String(a.value);
+        const hit = /^=\{.*\}$/.test(rawText) ? resolve(rawText) : null;
         return {
           key: a.key,
-          value: a.value == null ? '' : String(a.value),
+          value: rawText,
+          // What the sheet actually prints, when we could work it out.
+          rendered: hit,
           x: rnd(a.x),
           y: rnd(a.y),
           rotation: a.rotation || 0,

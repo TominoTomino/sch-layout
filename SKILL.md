@@ -20,6 +20,7 @@ node scripts/dump.mjs    --out page.json [--page <docUuid>]   # 从 EDA 取当�
 node scripts/export-epro.mjs --out symbols.json               # 导出工程包并解出真实符号外形
 node scripts/lint.mjs    <page.json> [--symbols symbols.json] [--md|-v]
 node scripts/apply.mjs   <page.json> --op snap-grid [--commit] # 写入 EDA（默认预演）
+node scripts/labels.mjs  <page.json> --symbols symbols.json   # 位号/名称显示与摆位
 node scripts/measure.mjs <page.json> [--write]                 # 从样板测常量
 node scripts/layout.mjs  <design.json> [--out plan.json] [--emit-page page.json]
 ```

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { bboxOfRects, ptEq } from './geometry.mjs';
+import { bboxOfRects, ptEq, segmentCrossesRect } from './geometry.mjs';
 
 export const SCHEMA_VERSION = '0.2.0';
 
@@ -250,7 +250,10 @@ export function textExtent(text, fontSize) {
 // never under-estimates where the glyphs actually fall.
 export function attrBBox(attr) {
   if (!attr || attr.visible === false) return null;
-  const { w, h } = textExtent(attr.value, attr.fontSize);
+  // Prefer what the sheet actually prints: `={Value}` renders the part's value,
+  // so measuring the template string itself would be measuring the wrong thing.
+  const text = attr.rendered != null ? attr.rendered : attr.value;
+  const { w, h } = textExtent(text, attr.fontSize);
   if (!w) return null;
   const rot = ((attr.rotation ?? 0) % 360 + 360) % 360;
   const vertical = rot === 90 || rot === 270;
@@ -308,31 +311,76 @@ export function sideSlot(box, side, textW, opts = {}) {
   return { x: box.x + box.w / 2 - textW / 2, y: box.y - gap - h, w: textW, h };
 }
 
+// Corner slots: the text sits outside the body and is aligned to one of its
+// vertical edges, so a designator reads as belonging to the part below-right of
+// it rather than floating in the middle of a gap.
+export function cornerSlot(box, corner, textW, opts = {}) {
+  const gap = opts.gap ?? 5;
+  const h = opts.h ?? 12;
+  const toLeft = corner === 'topLeft' || corner === 'bottomLeft';
+  const isTop = corner === 'topLeft' || corner === 'topRight';
+  return {
+    x: toLeft ? box.x : box.x + box.w - textW,
+    y: isTop ? box.y + box.h + gap : box.y - gap - h,
+    w: textW,
+    h
+  };
+}
+
 const rectHit = (a, b) => !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
 const inside = (a, r) => a.x >= r.x && a.y >= r.y && a.x + a.w <= r.x + r.w && a.y + a.h <= r.y + r.h;
 
-// Decide where a designator goes. Returns { side, rect } or null when no side
-// is free - in which case the caller should grow the clearance, not guess.
-// `prefer` lets a layout express symmetry: passing ['left'] for one member of a
-// pair and ['right'] for its mirror gives outward-facing labels.
+// Pin stubs as line segments, so a slot can be rejected when it would sit on
+// top of one. rotation points outward (D18) and length runs back to the body.
+export function pinSegments(c) {
+  const out = [];
+  for (const p of c.pins || []) {
+    const r = ((p.rotation ?? 0) % 360 + 360) % 360;
+    const ux = r === 0 ? 1 : r === 180 ? -1 : 0;
+    const uy = r === 90 ? 1 : r === 270 ? -1 : 0;
+    const len = p.len || 0;
+    if (!len) continue;
+    out.push({ a: [p.x, p.y], b: [p.x - ux * len, p.y - uy * len] });
+  }
+  return out;
+}
+
+// Designator and part name have different preferred homes: the reference goes
+// above its part, the name below it. Both prefer a corner over a centred side,
+// so a reader can tell which part the text belongs to without tracing.
+export const TEXT_PRIORITY = {
+  designator: ['topLeft', 'topRight', 'bottomLeft', 'bottomRight', 'left', 'right', 'top', 'bottom'],
+  name: ['bottomLeft', 'bottomRight', 'topLeft', 'topRight', 'left', 'right', 'bottom', 'top']
+};
+
+const CORNERS = new Set(['topLeft', 'topRight', 'bottomLeft', 'bottomRight']);
+
+// Pick a slot for one piece of text. Rejects, in order of cost: leaving the
+// block, landing on a pin stub, landing on a neighbour. Returns null only when
+// nothing is left - the caller should widen the gap rather than guess.
+export function chooseTextSlot(box, opts) {
+  const { textW, neighbours = [], rect = null, kind = 'designator', pins = [], prefer = null } = opts;
+  const order = prefer || TEXT_PRIORITY[kind] || TEXT_PRIORITY.designator;
+  let firstPossible = null;
+  // Direction first, then clearance. The reverse order was a bug: trying gap 5 on
+  // every side before gap 25 on any of them meant a narrow right-side slot beat a
+  // proper bottom-left one, so labels drifted away from their preferred corner.
+  for (const side of order) {
+    for (const gap of [5, 25]) {
+      const slot = CORNERS.has(side) ? cornerSlot(box, side, textW, { gap }) : sideSlot(box, side, textW, { gap });
+      if (rect && !inside(slot, rect)) continue;
+      if (!firstPossible) firstPossible = { side, rect: slot };
+      if (pins.some((sg) => segmentCrossesRect(sg.a, sg.b, slot, 0, 0))) continue;
+      if (neighbours.some((n) => n && rectHit(slot, n))) continue;
+      return { side, rect: slot, clean: true, gap };
+    }
+  }
+  return firstPossible ? { ...firstPossible, clean: false } : null;
+}
+
 export function chooseDesignatorSide(c, box, textW, neighbours = [], rect = null, prefer = null) {
-  const blocked = pinSides(c);
-  const order = prefer || ['bottom', 'top', 'right', 'left'];
-  const fallback = [];
-  for (const side of order) {
-    const slot = sideSlot(box, side, textW);
-    if (blocked.has(side)) continue;
-    if (rect && !inside(slot, rect)) continue;
-    if (neighbours.some((n) => n && rectHit(slot, n))) { fallback.push(side); continue; }
-    return { side, rect: slot, clean: true };
-  }
-  // Nothing clean: return the first geometrically possible side so the caller
-  // can report it instead of silently leaving the label where it was.
-  for (const side of order) {
-    if (blocked.has(side)) continue;
-    const slot = sideSlot(box, side, textW);
-    if (rect && !inside(slot, rect)) continue;
-    return { side, rect: slot, clean: false };
-  }
-  return null;
+  const r = chooseTextSlot(box, {
+    textW, neighbours, rect, kind: 'designator', pins: pinSegments(c), prefer
+  });
+  return r;
 }

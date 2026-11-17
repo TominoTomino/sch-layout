@@ -1056,3 +1056,60 @@ DS1.Designator / DS2 — "DS1" 压在 DS2 的符号上
 **拆两条。** `text-overlap`（error）= 长度确定文字，`text-overlap-unknown`（info）= `={Value}` 这类模板。因为后者的宽度只能猜，把它和确定的 `Designator` 一起报 error，会让报告里永远挂着一批"可能是假"的错误，久了就没人看了。
 
 当前页最终：`text-overlap` **0 条**，`text-overlap-unknown` 10 条（全是电源区固定元件），`density` 1 条 warn（旧规则的已知问题）。
+
+---
+
+## D47 — 位号与名称的显示和摆位规则（用户三条要求落地）
+
+**要求**：① 两者默认显示；② 位号优先左上、右上次选；③ 名称优先左下、右下次选。
+
+### 显示：先解决"显示什么"
+
+`Name` 的值是模板 `={Value}` / `={Manufacturer Part}`，不是文字。按字面测量等于量错了东西，所以 dump 现在会解析：
+
+| 优先级 | 来源 | 例子 |
+|---|---|---|
+| 1 | `otherProperty["Value"]` | `100nF`、`2kΩ`、`56kΩ` |
+| 2 | 符号名（**去掉立创编号**） | `1N4148W`、`TM1652`、`5631AS0.56英寸8段3位共阴` |
+| 3 | `LCSC Part Name` | 很少用到 |
+
+第 2 条的后缀处理是必需的：符号名常带 `_C2892570` 这类目录编号，属于采购数据，不是器件名。不去掉的话，"1N4148W_C2892570" 会把字号逼到 6 号。
+
+### 摆位：四步判据
+
+```js
+位号 TEXT_PRIORITY.designator = ['topLeft','topRight','bottomLeft','bottomRight','left','right','top','bottom']
+名称 TEXT_PRIORITY.name       = ['bottomLeft','bottomRight','topLeft','topRight','left','right','bottom','top']
+```
+
+每个候选按顺序被三类条件否决：出块、压引脚线段、压邻居（含本趟已放好的其它文字）。
+
+**角落的关键性质**：角落 slot 对齐 body 的左右边缘，而引脚通常只占 body 中间一段。所以角落位置天然避开了引脚——这是"左上角"能成立而"正上方居中"不能的原因。
+
+### 过程中修掉的两个 bug
+
+**① 循环嵌套反了。** 原实现是"先遍历间距、再遍历方向"，结果 gap 5 下的 `right` 通过了，就再也不会去试 gap 25 下的 `bottomLeft`——位号全部漂到两侧。改成**方向在外、间距在内**后，59 个位号全部落在左上角。
+
+**② 名称按 body 宽度定字号。** 想当然地认为名称不该比本体宽，结果 0805 电容 body 只有 21 宽、"100nF" 有 35 宽，全部被压到 6 号。改成宽度上限 `max(body.w, 90)`：小元件允许名称适度超出，大元件按本体收。
+
+### 结果
+
+```
+位号  topLeft 59/59 个元件（100%）
+名称  bottomLeft 53 / left 3 / topLeft 2 / right 1
+字号  12 号 47 个，11 号 7 个，8-10 号 4 个
+```
+
+两个数码管各自缩到 8 号（名称 156 宽 > 本体 110），左右对称，`text-overlap` 归零。
+
+### 工具
+
+`scripts/labels.mjs`——可重入（写入绝对坐标）、分批（bridge 单请求 30 秒上限）、带工程守卫（D39）。不传 `--commit` 时只输出计划。
+
+```bash
+node scripts/labels.mjs page.json --symbols symbols.json            # 预演
+node scripts/labels.mjs page.json --symbols symbols.json --commit \
+     --project <uuid> --page <docUuid>                              # 写入
+```
+
+`--rect x,y,w,h` 把摆位限制在一个块内；不传则用整页空间。

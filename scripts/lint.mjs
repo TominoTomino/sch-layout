@@ -164,7 +164,9 @@ const RULE_IMPL = {
     const comps = page.components.filter(c => c.bbox);
     for (const c of comps) {
       for (const a of c.attrs || []) {
-        if (/^=\{.*\}$/.test(String(a.value || ''))) continue;
+        // A template that could not be resolved has an unknown width, so it is
+        // not allowed to claim an error (handled by text-overlap-unknown).
+        if (a.rendered == null) continue;
         const t = attrBBox(a);
         if (!t) continue;
         for (const o of comps) {
@@ -172,7 +174,7 @@ const RULE_IMPL = {
           if (!textReallyCovers(t, o.bbox)) continue;
           items.push({
             ref: `${c.designator}.${a.key} / ${o.designator || o.id}`,
-            detail: `"${a.value}" 压在 ${o.designator || o.id} 的符号上`
+            detail: `"${a.rendered}" 压在 ${o.designator || o.id} 的符号上`
           });
         }
       }
@@ -188,6 +190,7 @@ const RULE_IMPL = {
     const comps = page.components.filter(c => c.bbox);
     for (const c of comps) {
       for (const a of c.attrs || []) {
+        if (a.rendered != null) continue;
         if (!/^=\{.*\}$/.test(String(a.value || ''))) continue;
         const t = attrBBox(a);
         if (!t) continue;
@@ -196,7 +199,7 @@ const RULE_IMPL = {
           if (!textReallyCovers(t, o.bbox)) continue;
           items.push({
             ref: `${c.designator}.${a.key} / ${o.designator || o.id}`,
-            detail: `型号文字（${a.value}，长度未知）可能压在 ${o.designator || o.id} 上，按 ${Math.round(t.w)} 单位估算`
+            detail: `型号文字（${a.value}，未能解析）可能压在 ${o.designator || o.id} 上，按 ${Math.round(t.w)} 单位估算`
           });
         }
       }
