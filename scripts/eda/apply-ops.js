@@ -63,11 +63,16 @@ function diffNets(a, b) {
 // create() right after delete() fails with a bare "create failed!". The editor
 // needs a beat to settle its geometry cache. Measured: without this wait the
 // first create always failed, which also broke rollback (the wire vanished).
-async function createWire(segs, net, tries = 3) {
+async function createWire(segs, net, tries = 5) {
+  // `net` is deliberately NOT passed: after the original wire is deleted the net
+  // may have no remaining geometry, and create(line, net) then fails with a bare
+  // "create failed!" - measured twice during rehearsal. Letting the editor infer
+  // the net from what the wire touches is both more robust and verified by the
+  // per-pin comparison that follows.
   let last = null;
   for (let i = 0; i < tries; i++) {
     try {
-      const w = await eda.sch_PrimitiveWire.create(segs, net || undefined);
+      const w = await eda.sch_PrimitiveWire.create(segs);
       if (w) return w;
     } catch (e) {
       last = e;
@@ -154,6 +159,7 @@ for (const r of rebuild) {
   try {
     const w = await createWire(toSegments(r.next), r.net);
     created.push(w && w.primitiveId ? w.primitiveId : null);
+    await wait(150); // back-to-back creates also collide occasionally
   } catch (e) {
     errors.push('create: ' + (e && e.message ? e.message : e));
     created.push(null);
@@ -163,6 +169,14 @@ for (const r of rebuild) {
 await wait(900);
 let after = await pinNets();
 let changed = diffNets(before, after);
+
+// Edits live in memory until the document is saved; reopening the page (which
+// every dump does) throws them away. Verified: two re-created wires vanished on
+// the next openDocument, and persisted only after SCH_Document.save().
+let saved = null;
+if (!changed.length) {
+  try { saved = await eda.sch_Document.save(); } catch (e) { saved = 'err:' + (e && e.message ? e.message : e); }
+}
 
 // An edit is allowed to move wires and rotate symbols. It is never allowed to
 // add or remove parts - if the inventory changes, something went wrong and the
@@ -188,6 +202,7 @@ if (changed.length) {
   await wait(900);
   after = await pinNets();
   rolledBack = true;
+  try { saved = await eda.sch_Document.save(); } catch (e) { saved = 'err:' + (e && e.message ? e.message : e); }
 }
 
 const residual = diffNets(before, after);
@@ -199,6 +214,7 @@ return {
   createdIds: created,
   errors,
   netlistChanged: changed.length,
+  saved,
   partsBefore: partsBefore.length,
   partsAfter: partsAfter.length,
   partsLost,

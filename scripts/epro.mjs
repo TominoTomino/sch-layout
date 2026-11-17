@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -57,11 +57,18 @@ function parseEsym(text) {
 }
 
 export function loadSymbols(eproPath, opts = {}) {
-  const work = opts.workdir || join(ROOT, 'out/symbols-work');
-  if (existsSync(work) && !opts.keep) rmSync(work, { recursive: true, force: true });
-  const how = extract(eproPath, work);
+  // Content-addressed work dir, reused instead of wiped. Deleting 1700+ files on
+  // every run trips the sandbox bulk-delete guard (SAFE_DELETE_BULK_CONFIRM_REQUIRED),
+  // and re-extracting the same archive gains nothing.
+  const stat = statSync(eproPath);
+  const key = `${basename(eproPath).replace(/[^A-Za-z0-9._-]/g, '_')}-${stat.size}`;
+  const work = opts.workdir || join(ROOT, 'out/symwork', key);
   const dir = join(work, 'SYMBOL');
-  if (!existsSync(dir)) throw new Error('压缩包里没有 SYMBOL/ 目录');
+  let how = 'reused';
+  if (!existsSync(dir)) {
+    how = extract(eproPath, work);
+    if (!existsSync(dir)) throw new Error('压缩包里没有 SYMBOL/ 目录');
+  }
 
   const symbols = {};
   let withBbox = 0;

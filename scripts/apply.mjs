@@ -57,6 +57,19 @@ function collectPoints(page) {
   return pts;
 }
 
+// A point that lies strictly inside another wire's segment is a T-junction. That
+// wire's `line` does not contain the point, so coordinate substitution will not
+// move it - the branch would be left hanging in space. Skip such points.
+function onSegmentInterior(p, a, b, tol = 0.5) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-9) return false;
+  const cross = Math.abs(dx * (p[1] - a[1]) - dy * (p[0] - a[0])) / len;
+  if (cross > tol) return false;
+  const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (len * len);
+  return t > 0.001 && t < 0.999;
+}
+
 function buildSnapOps(page, grid) {
   const pts = collectPoints(page);
   const pinKeys = new Set();
@@ -65,12 +78,22 @@ function buildSnapOps(page, grid) {
   }
   const occupied = new Set(pts.keys());
   const ops = [];
-  const skipped = { onPin: [], collision: [], already: [] };
+  const skipped = { onPin: [], collision: [], already: [], label: [], tJunction: [] };
+  const segs = [];
+  for (const w of page.wires) for (const g of w.segments) segs.push([g[0], g[1], g[2], g[3]]);
 
   for (const [k, p] of pts) {
     const onGrid = p.x % grid === 0 && p.y % grid === 0;
     if (onGrid) { skipped.already.push(k); continue; }
     if (pinKeys.has(k)) { skipped.onPin.push(k); continue; }
+    // netflag / netport cannot be moved (modify rejects them: "仅当器件类型为元件
+    // 时允许使用该函数"), so snapping a labelled point would move the wire and leave
+    // the flag behind - a guaranteed broken net. Rehearsal caught exactly this.
+    if (p.why.has('label')) { skipped.label.push(k); continue; }
+    if (segs.some((g) => onSegmentInterior([p.x, p.y], [g[0], g[1]], [g[2], g[3]]))) {
+      skipped.tJunction.push(k);
+      continue;
+    }
     const tx = Math.round(p.x / grid) * grid;
     const ty = Math.round(p.y / grid) * grid;
     const target = `${tx}|${ty}`;
@@ -143,6 +166,8 @@ for (const o of ops.slice(0, 20)) {
 }
 if (ops.length > 20) console.log(`  … 另 ${ops.length - 20} 个`);
 if (skipped.onPin.length) console.log(`跳过（落在引脚上，需移动元件）${skipped.onPin.length} 个`);
+if (skipped.label.length) console.log(`跳过（网络标签锚点，标签不能 modify，移了必然断网）${skipped.label.length} 个: ${skipped.label.slice(0, 6).join(' ')}`);
+if (skipped.tJunction.length) console.log(`跳过（T 型接点，所在导线不会被整段重建）${skipped.tJunction.length} 个: ${skipped.tJunction.slice(0, 6).join(' ')}`);
 if (skipped.collision.length) console.log(`跳过（目标点已被占用，合并会短路）${skipped.collision.length} 个`);
 for (const s of skipped.collision.slice(0, 5)) console.log(`  ${s}`);
 
@@ -192,6 +217,7 @@ if (r.errors && r.errors.length) for (const e of r.errors.slice(0, 5)) console.l
 
 if (r.netlistChanged === 0) {
   console.log(`网表校验: 通过（逐引脚一致）`);
+  console.log(`保存: ${r.saved === true ? '已写入工程' : r.saved}`);
   console.log(`\n改动已生效。重跑 lint 确认：node scripts/lint.mjs ${args.file}`);
   process.exit(0);
 }
