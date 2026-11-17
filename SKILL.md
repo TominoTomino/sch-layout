@@ -92,6 +92,7 @@ node scripts/layout.mjs  <design.json> [--out plan.json] [--emit-page page.json]
 | 现象 | 看这里 |
 |---|---|
 | lint 报 `数据不完整` / 规则被 skipped | `docs/schema.md` 的字段要求，dump 缺 pins/labels |
+| `pin-unconnected` 报了但设计上就该悬空 | **别改规则**，让用户在 EDA 里给该引脚标 NC（noConnected）。标了之后规则自动跳过，转 PCB 也不会再警告 |
 | 分数低但看不出问题 | `lint -v` 看明细；仍不符直觉 → 该条 lint 权重可能错了，记进 design-notes |
 | 布局结果很挤 | 常量没测过（provenance 是 PLACEHOLDER），先 measure |
 | 跨项目行为不一致 | 检查 `constants.json` 的 version，不同版本分数不可比 |
