@@ -1,8 +1,19 @@
 {
   "schemaVersion": "0.1.0",
-  "version": "0.3.2",
+  "version": "0.4.2",
   "note": "Rules are append-only. Adding a rule is the normal way this project improves; deleting one requires a written reason in references/design-notes.md.",
   "rules": [
+    {
+      "id": "array-overlap",
+      "severity": "info",
+      "weight": 0.1,
+      "requires": [
+        "components"
+      ],
+      "geometry": "approx",
+      "desc": "等距同型号阵列内部交叠（视为有意排版）",
+      "why": "七颗 ESD 二极管按固定间距排成阵列是刻意画法，不是缺陷。仅在'同 symbolUuid + 同轴 + 等差间距 + ≥3 个'时降级，见 D27。"
+    },
     {
       "id": "grid-off",
       "severity": "error",

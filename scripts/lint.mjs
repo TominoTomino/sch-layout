@@ -8,7 +8,7 @@ import {
 } from './lib/geometry.mjs';
 import {
   loadPage, wireSegments, buildNodeIndex, wireCorners,
-  capabilities, contentBBox, labelBBox, labelAnchor, pointKey
+  capabilities, contentBBox, labelBBox, labelAnchor, pointKey, detectArrays
 } from './lib/page.mjs';
 import { bboxToPage } from './epro.mjs';
 
@@ -36,7 +36,53 @@ function parseArgs(argv) {
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const fmt = (n, d = 1) => (Number.isFinite(n) ? Number(n.toFixed(d)) : '-');
 
+
+// Designers stack identical parts at a characteristic pitch; the overlap ratio of
+// such a pair repeats across the page, while a genuine collision is an outlier.
+// So: the modal ratio per symbol defines "intentional adjacency" (D27).
+function computeOverlaps(page, C) {
+  const need = C.limits.minOverlapRatio ?? 0.35;
+  const cs = page.components.filter(c => c.bbox && (c.bbox.w || c.bbox.h));
+  const pairs = [];
+  for (let i = 0; i < cs.length; i++) {
+    for (let j = i + 1; j < cs.length; j++) {
+      if (!rectsOverlap(cs[i].bbox, cs[j].bbox, 1)) continue;
+      const inter = rectIntersectionArea(cs[i].bbox, cs[j].bbox);
+      const smaller = Math.min(rectArea(cs[i].bbox), rectArea(cs[j].bbox));
+      const ratio = smaller > 0 ? inter / smaller : 1;
+      if (ratio < need) continue;
+      pairs.push({
+        a: cs[i].designator || cs[i].id,
+        b: cs[j].designator || cs[j].id,
+        symA: cs[i].symbolUuid, symB: cs[j].symbolUuid,
+        ratio,
+        bucket: Math.round(ratio * 20) / 20,
+        array: false
+      });
+    }
+  }
+  const tally = new Map();
+  for (const p of pairs) {
+    if (!p.symA || p.symA !== p.symB) continue;
+    const k = p.symA + '@' + p.bucket;
+    tally.set(k, (tally.get(k) || 0) + 1);
+  }
+  for (const p of pairs) {
+    if (!p.symA || p.symA !== p.symB) continue;
+    const k = p.symA + '@' + p.bucket;
+    if ((tally.get(k) || 0) >= 2) p.array = true;
+  }
+  return pairs;
+}
+
 const RULE_IMPL = {
+  'array-overlap': (page) => {
+    return (page.__overlaps || []).filter(o => o.array).map(o => ({
+      ref: `${o.a} / ${o.b}`,
+      detail: `等距排布内交叠 ${(o.ratio * 100).toFixed(0)}%，与同型号其它成对一致，视为有意排版`
+    }));
+  },
+
   'grid-off': (page, C) => {
     const g = page.grid || C.grid;
     const items = [];
@@ -59,39 +105,11 @@ const RULE_IMPL = {
     return items;
   },
 
-  'overlap': (page, C) => {
-    const items = [];
-    const cs = page.components.filter(c => c.bbox && (c.bbox.w || c.bbox.h));
-    for (let i = 0; i < cs.length; i++) {
-      for (let j = i + 1; j < cs.length; j++) {
-        if (!rectsOverlap(cs[i].bbox, cs[j].bbox, 1)) continue;
-        const inter = rectIntersectionArea(cs[i].bbox, cs[j].bbox);
-        const smaller = Math.min(rectArea(cs[i].bbox), rectArea(cs[j].bbox));
-        const ratio = smaller > 0 ? inter / smaller : 1;
-        const need = C.limits.minOverlapRatio ?? 0.35;
-        if (ratio >= need) {
-          items.push({
-            ref: `${cs[i].designator || cs[i].id} / ${cs[j].designator || cs[j].id}`,
-            detail: `重叠面积占较小者的 ${(ratio * 100).toFixed(0)}%（门槛 ${(need * 100).toFixed(0)}%）`
-          });
-        }
-      }
-    }
-    return items;
-  },
-
-  'pin-unconnected': (page) => {
-    const items = [];
-    for (const c of page.components) {
-      for (const p of c.pins || []) {
-        if (p.noConnected) continue;
-        if (p.net === undefined || p.net === null) continue;
-        if (p.net === '') {
-          items.push({ ref: `${c.designator}.${p.num}`, detail: `引脚无网络归属（${p.name || '未命名'}）` });
-        }
-      }
-    }
-    return items;
+  'overlap': (page) => {
+    return (page.__overlaps || []).filter(o => !o.array).map(o => ({
+      ref: `${o.a} / ${o.b}`,
+      detail: `重叠面积占较小者的 ${(o.ratio * 100).toFixed(0)}%`
+    }));
   },
 
   'dangling-wire': (page) => {
@@ -367,6 +385,8 @@ function main() {
     bboxSource = missing ? `epro (${real} 真 / ${missing} 回落引脚云)` : 'epro';
     issues.push({ level: missing ? 'warn' : 'info', code: 'bbox-source', msg: `外形来源: ${bboxSource}` });
   }
+
+  page.__overlaps = computeOverlaps(page, C);
 
   const ruleResults = R.rules.map(rule => {
     const missing = (rule.requires || []).filter(k => !caps[k]);

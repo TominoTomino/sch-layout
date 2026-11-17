@@ -194,3 +194,38 @@ export function labelBBox(l) {
 export function samePoint(a, b) {
   return ptEq(a, b);
 }
+
+// A run of >=3 identical symbols sharing one axis with constant pitch is a
+// deliberate array (e.g. seven ESD diodes feeding one bus), not clutter.
+// Only these members are eligible for the info-level overlap treatment (D27).
+export function detectArrays(page) {
+  const bySym = new Map();
+  for (const c of page.components) {
+    if (!c.symbolUuid) continue;
+    if (!bySym.has(c.symbolUuid)) bySym.set(c.symbolUuid, []);
+    bySym.get(c.symbolUuid).push(c);
+  }
+  const inArray = new Set();
+  for (const list of bySym.values()) {
+    if (list.length < 3) continue;
+    for (const axis of ['x', 'y']) {
+      const rows = new Map();
+      for (const c of list) {
+        const key = axis === 'x' ? Math.round(c.y) : Math.round(c.x);
+        if (!rows.has(key)) rows.set(key, []);
+        rows.get(key).push(c);
+      }
+      for (const row of rows.values()) {
+        if (row.length < 3) continue;
+        const sorted = [...row].sort((a, b) => (axis === 'x' ? a.x - b.x : a.y - b.y));
+        const gaps = [];
+        for (let i = 1; i < sorted.length; i++) {
+          gaps.push(axis === 'x' ? sorted[i].x - sorted[i - 1].x : sorted[i].y - sorted[i - 1].y);
+        }
+        const constant = gaps.length > 0 && gaps.every(g => g === gaps[0]) && gaps[0] > 0;
+        if (constant) for (const c of sorted) inArray.add(c.id);
+      }
+    }
+  }
+  return inArray;
+}
