@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0.2.0",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "unit": "0.01in",
   "grid": 10,
   "spacing": {
@@ -26,9 +26,25 @@
   },
   "provenance": {
     "_note": "Every number must record where it came from. Written by measure.mjs, never hand-edited without updating this block.",
-    "componentMin": { "source": "PLACEHOLDER", "method": "assumed", "n": 0 },
-    "blockGap": { "source": "PLACEHOLDER", "method": "assumed", "n": 0 },
-    "labelClearance": { "source": "PLACEHOLDER", "method": "assumed", "n": 0 },
-    "pinStubLength": { "source": "PLACEHOLDER", "method": "assumed", "n": 0 }
+    "componentMin": {
+      "source": "PLACEHOLDER",
+      "method": "assumed",
+      "n": 0
+    },
+    "blockGap": {
+      "source": "PLACEHOLDER",
+      "method": "assumed",
+      "n": 0
+    },
+    "labelClearance": {
+      "source": "PLACEHOLDER",
+      "method": "assumed",
+      "n": 0
+    },
+    "pinStubLength": {
+      "source": "PLACEHOLDER",
+      "method": "assumed",
+      "n": 0
+    }
   }
 }

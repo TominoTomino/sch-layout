@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "0.2.0",
+  "unit": "0.01in",
+  "grid": 5,
+  "source": {
+    "platform": "easyeda-pro",
+    "project": "MIN_TWO_RESISTORS",
+    "page": "P1",
+    "note": "极简对照页：两个电阻串联 + 两个电源标识。用于锁定引脚坐标语义(D18)，可公开提交。"
+  },
+  "components": [
+    {
+      "id": "1119e79c2ca49a80",
+      "designator": "R1",
+      "x": 385,
+      "y": 510,
+      "rotation": 0,
+      "mirror": false,
+      "symbol": "RE1206F1R000",
+      "footprint": "R1206",
+      "net": "",
+      "pins": [
+        {
+          "num": "2",
+          "name": "2",
+          "x": 405,
+          "y": 510,
+          "len": 10,
+          "rotation": 0,
+          "noConnected": false
+        },
+        {
+          "num": "1",
+          "name": "1",
+          "x": 365,
+          "y": 510,
+          "len": 10,
+          "rotation": 180,
+          "noConnected": false
+        }
+      ]
+    },
+    {
+      "id": "f2bd586575cc160b",
+      "designator": "R2",
+      "x": 440,
+      "y": 510,
+      "rotation": 0,
+      "mirror": false,
+      "symbol": "RE1206F1R000",
+      "footprint": "R1206",
+      "net": "",
+      "pins": [
+        {
+          "num": "2",
+          "name": "2",
+          "x": 460,
+          "y": 510,
+          "len": 10,
+          "rotation": 0,
+          "noConnected": false
+        },
+        {
+          "num": "1",
+          "name": "1",
+          "x": 420,
+          "y": 510,
+          "len": 10,
+          "rotation": 180,
+          "noConnected": false
+        }
+      ]
+    }
+  ],
+  "labels": [
+    {
+      "id": "fc36f1ffcc51d04a",
+      "kind": "netflag",
+      "text": "+5V",
+      "x": 365,
+      "y": 510,
+      "conn": {
+        "x": 365,
+        "y": 510
+      },
+      "rotation": 90,
+      "mirror": false,
+      "symbol": "Power-5V"
+    },
+    {
+      "id": "eadceca6cea00a28",
+      "kind": "netflag",
+      "text": "GND",
+      "x": 460,
+      "y": 510,
+      "conn": {
+        "x": 460,
+        "y": 510
+      },
+      "rotation": 90,
+      "mirror": false,
+      "symbol": "Ground-GND"
+    }
+  ],
+  "wires": [
+    {
+      "id": "4120aef7c9895090",
+      "net": "",
+      "segments": [
+        [
+          405,
+          510,
+          420,
+          510
+        ]
+      ]
+    },
+    {
+      "id": "b755efc06a651847",
+      "net": "",
+      "segments": [
+        [
+          365,
+          510,
+          365,
+          510
+        ]
+      ]
+    },
+    {
+      "id": "403f163312201f46",
+      "net": "",
+      "segments": [
+        [
+          460,
+          510,
+          460,
+          510
+        ]
+      ]
+    }
+  ],
+  "texts": [],
+  "gridCoverage": 1
+}

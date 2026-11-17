@@ -42,15 +42,15 @@ function pointsToSegments(points) {
   return out;
 }
 
-// Symbol body estimate: pin cloud plus padding. The API does not expose real
-// symbol outlines, so overlap checks inherit this approximation (design-notes D8).
+// Symbol body estimate from the pin cloud. Pins extend inward from their
+// connection point, so the pin cloud is already the outer envelope — no padding.
+// Real symbol outlines are not exposed by the API (design-notes D8).
 function deriveBBoxFromPins(c) {
   if (!c.pins.length) return { x: c.x, y: c.y, w: 0, h: 0 };
   const xs = c.pins.map(p => p.x), ys = c.pins.map(p => p.y);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
   const y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const pad = 10;
-  return { x: x0 - pad, y: y0 - pad, w: (x1 - x0) + pad * 2, h: (y1 - y0) + pad * 2 };
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
 export function validatePage(page) {
@@ -123,7 +123,7 @@ export function buildNodeIndex(page) {
   for (const l of page.labels) ensure(labelAnchor(l)).labels.push({ id: l.id, text: l.text, kind: l.kind });
   for (const s of wireSegments(page)) {
     ensure(s.a).segments.push(s);
-    ensure(s.b).segments.push(s);
+    if (pointKey(s.a) !== pointKey(s.b)) ensure(s.b).segments.push(s);
   }
   return nodes;
 }
@@ -143,6 +143,7 @@ export function wireCorners(segments) {
     at.get(k).push(d);
   };
   for (const s of segments) {
+    if (pointKey(s.a) === pointKey(s.b)) continue;
     push(s.a, dir(s.a, s.b));
     push(s.b, dir(s.b, s.a));
   }
